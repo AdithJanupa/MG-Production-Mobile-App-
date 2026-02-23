@@ -1,0 +1,210 @@
+import 'dart:async';
+
+import 'package:flutter/foundation.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:flutter_inappwebview/flutter_inappwebview.dart';
+
+Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+
+  if (!kIsWeb && defaultTargetPlatform == TargetPlatform.android) {
+    await InAppWebViewController.setWebContentsDebuggingEnabled(kDebugMode);
+  }
+
+  runApp(const MGProductsApp());
+}
+
+class MGProductsApp extends StatelessWidget {
+  const MGProductsApp({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      title: 'MG PRODUCTS',
+      debugShowCheckedModeBanner: false,
+      theme: ThemeData(
+        colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xFF2563EB)),
+      ),
+      home: const MGProductsHomePage(),
+    );
+  }
+}
+
+class MGProductsHomePage extends StatefulWidget {
+  const MGProductsHomePage({super.key});
+
+  @override
+  State<MGProductsHomePage> createState() => _MGProductsHomePageState();
+}
+
+class _MGProductsHomePageState extends State<MGProductsHomePage> {
+  final InAppLocalhostServer _localhostServer = InAppLocalhostServer(
+    documentRoot: 'assets/webapp',
+  );
+  InAppWebViewController? _webViewController;
+
+  bool _serverReady = false;
+  String? _startupError;
+  double _loadingProgress = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _startLocalServer();
+  }
+
+  @override
+  void dispose() {
+    if (_localhostServer.isRunning()) {
+      unawaited(_localhostServer.close());
+    }
+    super.dispose();
+  }
+
+  Future<void> _startLocalServer() async {
+    try {
+      if (!_localhostServer.isRunning()) {
+        await _localhostServer.start();
+      }
+
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {
+        _serverReady = true;
+        _startupError = null;
+      });
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {
+        _startupError = error.toString();
+      });
+    }
+  }
+
+  Future<void> _handleBack() async {
+    final controller = _webViewController;
+    if (controller != null && await controller.canGoBack()) {
+      await controller.goBack();
+      return;
+    }
+
+    await SystemNavigator.pop();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_startupError != null) {
+      return Scaffold(
+        body: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(Icons.error_outline, size: 56, color: Colors.red),
+                const SizedBox(height: 16),
+                const Text(
+                  'Failed to start app server',
+                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  _startupError!,
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(color: Colors.black54),
+                ),
+                const SizedBox(height: 16),
+                ElevatedButton(
+                  onPressed: _startLocalServer,
+                  child: const Text('Retry'),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
+
+    if (!_serverReady) {
+      return const Scaffold(
+        body: Center(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              CircularProgressIndicator(),
+              SizedBox(height: 12),
+              Text('Starting MG PRODUCTS app...'),
+            ],
+          ),
+        ),
+      );
+    }
+
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, result) {
+        if (!didPop) {
+          _handleBack();
+        }
+      },
+      child: Scaffold(
+        appBar: AppBar(
+          title: const Text('MG PRODUCTS'),
+          actions: [
+            IconButton(
+              tooltip: 'Reload',
+              onPressed: () => _webViewController?.reload(),
+              icon: const Icon(Icons.refresh),
+            ),
+          ],
+        ),
+        body: Stack(
+          children: [
+            InAppWebView(
+              initialUrlRequest: URLRequest(
+                url: WebUri('http://localhost:8080/index.html'),
+              ),
+              initialSettings: InAppWebViewSettings(
+                javaScriptEnabled: true,
+                mediaPlaybackRequiresUserGesture: false,
+                supportZoom: false,
+              ),
+              onWebViewCreated: (controller) {
+                _webViewController = controller;
+              },
+              onProgressChanged: (controller, progress) {
+                if (!mounted) {
+                  return;
+                }
+
+                setState(() {
+                  _loadingProgress = progress / 100;
+                });
+              },
+              onReceivedError: (controller, request, error) {
+                if (!mounted) {
+                  return;
+                }
+
+                ScaffoldMessenger.of(
+                  context,
+                ).showSnackBar(SnackBar(content: Text(error.description)));
+              },
+            ),
+            if (_loadingProgress < 1)
+              LinearProgressIndicator(
+                value: _loadingProgress == 0 ? null : _loadingProgress,
+                minHeight: 2,
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+}

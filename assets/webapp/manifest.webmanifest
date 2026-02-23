@@ -1,0 +1,26 @@
+{
+  "id": "./index.html",
+  "name": "MG PRODUCTS - Shop Management System",
+  "short_name": "MG PRODUCTS",
+  "description": "Manage orders, products, and sales reports for daily shop visits.",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#f5f7fa",
+  "theme_color": "#4B352A",
+  "icons": [
+    {
+      "src": "icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}

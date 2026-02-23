@@ -1,0 +1,811 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <meta name="description" content="MG PRODUCTS shop management system for orders, reports, and product tracking.">
+    <meta name="theme-color" content="#2563EB">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+    <meta name="apple-mobile-web-app-title" content="MG PRODUCTS">
+    <title>MG PRODUCTS - Shop Management System</title>
+    <link rel="manifest" href="manifest.webmanifest">
+    <link rel="apple-touch-icon" sizes="180x180" href="icons/apple-touch-icon.png">
+    <link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32x32.png">
+    <link rel="icon" type="image/png" sizes="16x16" href="icons/favicon-16x16.png">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <a href="#dashboard" class="skip-link">Skip to main content</a>
+    <!-- Login Page -->
+    <div id="login-page" class="login-page">
+        <div class="login-container">
+            <div class="login-header">
+                <div class="login-logo">
+                    <span class="login-mg">MG</span>
+                    <span class="login-products">PRODUCTS</span>
+                </div>
+                <p>Shop Management System</p>
+            </div>
+            
+            <div class="login-tabs">
+                <button class="login-tab active" data-role="admin">
+                    <i class="fas fa-shield-alt"></i> Administrator
+                </button>
+                <button class="login-tab" data-role="user">
+                    <i class="fas fa-user"></i> User (View Only)
+                </button>
+            </div>
+            
+            <form id="login-form" class="login-form">
+                <div class="form-group">
+                    <label for="username">
+                        <i class="fas fa-user"></i> Username
+                    </label>
+                    <input type="text" id="username" placeholder="Enter username" required>
+                </div>
+                
+                <div class="form-group">
+                    <label for="password">
+                        <i class="fas fa-lock"></i> Password
+                    </label>
+                    <input type="password" id="password" placeholder="Enter password" required>
+                </div>
+                
+                <div class="form-group">
+                    <label for="login-role">
+                        <i class="fas fa-user-tag"></i> Login as:
+                    </label>
+                    <select id="login-role" class="form-control">
+                        <option value="admin">Administrator (Full Access)</option>
+                        <option value="user">User (View Only)</option>
+                    </select>
+                </div>
+                
+                <div class="login-info">
+                    <p><i class="fas fa-info-circle"></i> Demo Credentials:</p>
+                    <div class="demo-creds">
+                        <div class="creds-item">
+                            <span class="role-badge admin">Admin</span>
+                            <span>admin / admin123</span>
+                        </div>
+                        <div class="creds-item">
+                            <span class="role-badge user">User</span>
+                            <span>user / user123</span>
+                        </div>
+                    </div>
+                </div>
+                
+                <button type="submit" class="btn-login">
+                    <i class="fas fa-sign-in-alt"></i> Login to Dashboard
+                </button>
+            </form>
+            
+            <div class="login-footer">
+                <p>&copy; 2026 MG PRODUCTS. All rights reserved.</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Main Application -->
+    <div id="app" class="container" style="display: none;">
+        <!-- Header -->
+        <header class="header">
+            <div class="header-left">
+                <button id="sidebarToggle" class="btn-sidebar-toggle" type="button" aria-label="Open navigation menu" aria-controls="app-sidebar" aria-expanded="false">
+                    <i class="fas fa-bars"></i>
+                </button>
+                <div class="logo-container">
+                    <div class="logo">
+                        <div class="logo-text">
+                            <span class="logo-mg">MG</span>
+                            <span class="logo-products">PRODUCTS</span>
+                        </div>
+                        <p>Shop Management System</p>
+                    </div>
+                </div>
+                <div class="page-context">
+                    <p class="page-eyebrow">Control Center</p>
+                    <h1 id="current-view-title">Dashboard</h1>
+                    <p id="current-view-description">Track daily orders, revenue, and pending collections.</p>
+                </div>
+            </div>
+            <div class="user-info">
+                <span id="network-status" class="badge status-online" aria-live="polite">Online</span>
+                <div class="date-display">
+                    <i class="fas fa-calendar-alt" aria-hidden="true"></i>
+                    <span id="current-date"></span>
+                </div>
+                <button id="installAppBtn" class="btn-install-app" type="button" style="display: none;">
+                    <i class="fas fa-download" aria-hidden="true"></i>
+                    <span>Install App</span>
+                </button>
+                <div class="user-profile" id="userProfile">
+                    <div class="user-avatar" aria-hidden="true">
+                        <i class="fas fa-user-circle"></i>
+                    </div>
+                    <div class="user-details">
+                        <span id="user-name">Guest</span>
+                        <span id="user-role">Viewer</span>
+                    </div>
+                    <button id="logoutBtn" class="btn-logout" title="Logout" type="button" aria-label="Logout">
+                        <i class="fas fa-sign-out-alt" aria-hidden="true"></i>
+                    </button>
+                </div>
+            </div>
+        </header>
+
+        <!-- Main Content -->
+        <div class="main-content">
+            <!-- Sidebar -->
+            <aside id="app-sidebar" class="sidebar" aria-label="Primary">
+                <div class="sidebar-header">
+                    <div class="logo">
+                        <div class="logo-text">
+                            <span class="logo-mg">MG</span>
+                            <span class="logo-products">PRODUCTS</span>
+                        </div>
+                        <p>Sales Operations</p>
+                    </div>
+                    <div class="theme-toggle">
+                        <button id="themeToggle" class="btn-theme" type="button" aria-label="Toggle dark mode">
+                            <i class="fas fa-moon"></i>
+                            <i class="fas fa-sun" style="display: none;"></i>
+                        </button>
+                    </div>
+                </div>
+
+                <nav class="nav-menu" aria-label="Main navigation">
+                    <ul>
+                        <li class="active" data-section="dashboard" role="button" tabindex="0" aria-current="page">
+                            <i class="fas fa-tachometer-alt" aria-hidden="true"></i> Dashboard
+                        </li>
+                        <li data-section="add-order" class="admin-only" role="button" tabindex="0">
+                            <i class="fas fa-plus-circle" aria-hidden="true"></i> Add Order
+                        </li>
+                        <li data-section="view-orders" role="button" tabindex="0">
+                            <i class="fas fa-list-alt" aria-hidden="true"></i> View Orders
+                        </li>
+                        <li data-section="reports" role="button" tabindex="0">
+                            <i class="fas fa-chart-bar" aria-hidden="true"></i> Reports
+                        </li>
+                        <li data-section="products" class="admin-only" role="button" tabindex="0">
+                            <i class="fas fa-box-open" aria-hidden="true"></i> Products
+                        </li>
+                    </ul>
+                </nav>
+                
+                <div class="product-prices">
+                    <h3><i class="fas fa-tags"></i> Product Prices</h3>
+                    <ul id="product-list-sidebar">
+                        <!-- Products will be dynamically added here -->
+                    </ul>
+                </div>
+                
+                <div class="stats-summary">
+                    <h3><i class="fas fa-chart-line"></i> Today's Summary</h3>
+                    <div class="stat-item">
+                        <span><i class="fas fa-shopping-cart"></i> Today's Orders:</span>
+                        <span id="today-orders">0</span>
+                    </div>
+                    <div class="stat-item">
+                        <span><i class="fas fa-money-bill-wave"></i> Today's Revenue:</span>
+                        <span id="today-revenue">Rs. 0</span>
+                    </div>
+                    <div class="stat-item pending-item">
+                        <span><i class="fas fa-clock"></i> Pending Payments:</span>
+                        <span id="pending-payments">Rs. 0</span>
+                    </div>
+                </div>
+
+                <div class="user-status">
+                    <div class="current-user">
+                        <i class="fas fa-user-circle"></i>
+                        <div class="user-info-small">
+                            <span id="sidebar-user-name">Guest</span>
+                            <span id="sidebar-user-role">Viewer</span>
+                        </div>
+                    </div>
+                    <button id="sidebarLogoutBtn" class="btn-logout-sidebar">
+                        <i class="fas fa-sign-out-alt"></i> Logout
+                    </button>
+                </div>
+            </aside>
+            <button id="sidebarOverlay" class="sidebar-overlay" type="button" aria-label="Close navigation menu"></button>
+
+            <!-- Content Area -->
+            <div class="content-area">
+                <!-- Dashboard Section -->
+                <section id="dashboard" class="content-section active">
+                    <header class="section-header">
+                        <div>
+                            <h2><i class="fas fa-tachometer-alt" aria-hidden="true"></i> Dashboard</h2>
+                            <p>Monitor real-time sales, collections, and operational health.</p>
+                        </div>
+                        <button type="button" class="btn btn-primary section-header-action" data-section-nav="add-order">
+                            <i class="fas fa-plus-circle" aria-hidden="true"></i>
+                            <span>New Order</span>
+                        </button>
+                    </header>
+                    <div class="dashboard-cards">
+                        <div class="card">
+                            <div class="card-icon metric-orders">
+                                <i class="fas fa-shopping-cart"></i>
+                            </div>
+                            <div class="card-info">
+                                <h3>Total Orders</h3>
+                                <p id="total-orders">0</p>
+                            </div>
+                        </div>
+                        <div class="card">
+                            <div class="card-icon metric-revenue">
+                                <i class="fas fa-money-bill-wave"></i>
+                            </div>
+                            <div class="card-info">
+                                <h3>Total Revenue</h3>
+                                <p id="total-revenue">Rs. 0</p>
+                            </div>
+                        </div>
+                        <div class="card">
+                            <div class="card-icon metric-today">
+                                <i class="fas fa-calendar-day"></i>
+                            </div>
+                            <div class="card-info">
+                                <h3>Today's Revenue</h3>
+                                <p id="dashboard-today-revenue">Rs. 0</p>
+                            </div>
+                        </div>
+                        <div class="card">
+                            <div class="card-icon metric-shops">
+                                <i class="fas fa-store"></i>
+                            </div>
+                            <div class="card-info">
+                                <h3>Active Shops</h3>
+                                <p id="active-shops">0</p>
+                            </div>
+                        </div>
+                        <div class="card">
+                            <div class="card-icon metric-pending">
+                                <i class="fas fa-clock"></i>
+                            </div>
+                            <div class="card-info">
+                                <h3>Pending Payments</h3>
+                                <p id="dashboard-pending-payments">Rs. 0</p>
+                            </div>
+                        </div>
+                        <div class="card">
+                            <div class="card-icon metric-paid">
+                                <i class="fas fa-check-circle"></i>
+                            </div>
+                            <div class="card-info">
+                                <h3>Paid Amount</h3>
+                                <p id="paid-amount">Rs. 0</p>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Pending Payments Section -->
+                    <div class="pending-payments-section">
+                        <h3><i class="fas fa-exclamation-circle"></i> Pending Payments (Need to Collect)</h3>
+                        <div class="table-container">
+                            <table id="pending-payments-table">
+                                <thead>
+                                    <tr>
+                                        <th>Shop Name</th>
+                                        <th>Order Date</th>
+                                        <th>Product</th>
+                                        <th>Quantity</th>
+                                        <th>Total Amount</th>
+                                        <th>Days Pending</th>
+                                        <th>Action</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <!-- Pending payments will be populated here -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                    
+                    <div class="recent-orders">
+                        <h3><i class="fas fa-history"></i> Recent Orders</h3>
+                        <div class="table-container">
+                            <table id="recent-orders-table">
+                                <thead>
+                                    <tr>
+                                        <th>Date</th>
+                                        <th>Shop Name</th>
+                                        <th>Product</th>
+                                        <th>Quantity</th>
+                                        <th>Total</th>
+                                        <th>Payment Status</th>
+                                        <th>Quick Action</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <!-- Recent orders will be populated here -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Add Order Section -->
+                <section id="add-order" class="content-section">
+                    <header class="section-header">
+                        <div>
+                            <h2><i class="fas fa-plus-circle" aria-hidden="true"></i> Add New Order</h2>
+                            <p>Capture shop visits quickly with clear payment and note tracking.</p>
+                        </div>
+                        <button type="button" class="btn btn-secondary section-header-action" data-section-nav="view-orders">
+                            <i class="fas fa-list-alt" aria-hidden="true"></i>
+                            <span>View Orders</span>
+                        </button>
+                    </header>
+                    <div class="form-container">
+                        <form id="order-form">
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label for="shop-name"><i class="fas fa-store"></i> Shop Name</label>
+                                    <input type="text" id="shop-name" placeholder="Enter shop name" required>
+                                </div>
+                                <div class="form-group">
+                                    <label for="order-date"><i class="fas fa-calendar"></i> Order Date</label>
+                                    <input type="date" id="order-date" required>
+                                </div>
+                            </div>
+                            
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label for="product"><i class="fas fa-box-open"></i> Product</label>
+                                    <select id="product" required>
+                                        <option value="">Select a product</option>
+                                        <!-- Products will be dynamically populated -->
+                                    </select>
+                                </div>
+                                <div class="form-group">
+                                    <label for="bill-number"><i class="fas fa-file-invoice"></i> Bill Number</label>
+                                    <input type="text" id="bill-number" placeholder="Enter bill number" required>
+                                </div>
+                            </div>
+                            
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label for="quantity"><i class="fas fa-cubes"></i> Quantity</label>
+                                    <input type="number" id="quantity" min="1" placeholder="Enter quantity" required>
+                                </div>
+                                <div class="form-group">
+                                    <label for="rate"><i class="fas fa-tag"></i> Rate per Product (Rs.)</label>
+                                    <input type="number" id="rate" min="1" placeholder="Enter rate" required>
+                                </div>
+                            </div>
+                            
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label for="total"><i class="fas fa-calculator"></i> Total Amount (Rs.)</label>
+                                    <input type="number" id="total" readonly>
+                                </div>
+                                <div class="form-group">
+                                    <label for="payment-status"><i class="fas fa-credit-card"></i> Payment Status</label>
+                                    <select id="payment-status" required>
+                                        <option value="non-paid" selected>Non-Paid</option>
+                                        <option value="paid">Paid</option>
+                                    </select>
+                                </div>
+                            </div>
+                            
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label for="paid-date"><i class="fas fa-calendar-check"></i> Paid Date</label>
+                                    <input type="date" id="paid-date" disabled>
+                                </div>
+                            </div>
+                            
+                            <div class="form-group full-width">
+                                <label for="note"><i class="fas fa-sticky-note"></i> Note</label>
+                                <textarea id="note" rows="3" placeholder="Any additional notes..."></textarea>
+                            </div>
+                            
+                            <div class="form-actions sticky-mobile">
+                                <button type="submit" class="btn btn-primary">
+                                    <i class="fas fa-save"></i> Save Order
+                                </button>
+                                <button type="reset" class="btn btn-secondary">
+                                    <i class="fas fa-redo"></i> Reset
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </section>
+
+                <!-- View Orders Section -->
+                <section id="view-orders" class="content-section">
+                    <header class="section-header">
+                        <div>
+                            <h2><i class="fas fa-list-alt" aria-hidden="true"></i> View Orders</h2>
+                            <p>Filter by date, product, shop, and payment status to find records quickly.</p>
+                        </div>
+                        <button id="export-filtered-pdf" class="btn btn-success section-header-action" disabled>
+                            <i class="fas fa-file-pdf" aria-hidden="true"></i> Export Filtered Report
+                        </button>
+                    </header>
+                    
+                    <!-- Filter Summary -->
+                    <div class="filter-summary">
+                        <div class="filter-stats">
+                            <div class="stat-box">
+                                <span class="stat-label">Filtered Orders:</span>
+                                <span class="stat-value" id="filtered-orders-count">0</span>
+                            </div>
+                            <div class="stat-box">
+                                <span class="stat-label">Total Revenue:</span>
+                                <span class="stat-value" id="filtered-total-revenue">Rs. 0</span>
+                            </div>
+                            <div class="stat-box">
+                                <span class="stat-label">Paid Amount:</span>
+                                <span class="stat-value" id="filtered-paid-amount">Rs. 0</span>
+                            </div>
+                            <div class="stat-box">
+                                <span class="stat-label">Pending Amount:</span>
+                                <span class="stat-value" id="filtered-pending-amount">Rs. 0</span>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="filter-controls">
+                        <div class="filter-group">
+                            <label for="filter-date">Filter by Date:</label>
+                            <input type="date" id="filter-date">
+                        </div>
+                        <div class="filter-group">
+                            <label for="filter-product">Filter by Product:</label>
+                            <select id="filter-product">
+                                <option value="">All Products</option>
+                                <!-- Products will be dynamically populated -->
+                            </select>
+                        </div>
+                        <div class="filter-group">
+                            <label for="filter-shop">Filter by Shop:</label>
+                            <input type="text" id="filter-shop" placeholder="Shop name">
+                        </div>
+                        <div class="filter-group">
+                            <label for="filter-payment-status">Filter by Payment:</label>
+                            <select id="filter-payment-status">
+                                <option value="">All Payments</option>
+                                <option value="paid">Paid</option>
+                                <option value="non-paid">Non-Paid</option>
+                            </select>
+                        </div>
+                        <button id="clear-filters" class="btn btn-secondary">
+                            <i class="fas fa-times"></i> Clear Filters
+                        </button>
+                    </div>
+                    
+                    <div class="table-container">
+                        <table id="orders-table">
+                            <thead>
+                                <tr>
+                                    <th>Date</th>
+                                    <th>Shop Name</th>
+                                    <th>Product</th>
+                                    <th>Bill No.</th>
+                                    <th>Qty</th>
+                                    <th>Rate</th>
+                                    <th>Total</th>
+                                    <th>Paid Date</th>
+                                    <th>Payment Status</th>
+                                    <th>Note</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <!-- Orders will be populated here -->
+                            </tbody>
+                        </table>
+                    </div>
+                </section>
+
+                <!-- Reports Section -->
+                <section id="reports" class="content-section">
+                    <header class="section-header">
+                        <div>
+                            <h2><i class="fas fa-chart-bar" aria-hidden="true"></i> Reports</h2>
+                            <p>Generate performance trends and export executive-ready report PDFs.</p>
+                        </div>
+                    </header>
+                    <div class="report-controls">
+                        <div class="report-period">
+                            <button class="btn-period active" data-period="daily">Daily Report</button>
+                            <button class="btn-period" data-period="weekly">Weekly Report</button>
+                            <button class="btn-period" data-period="monthly">Monthly Report</button>
+                        </div>
+                        <div class="date-range">
+                            <div class="date-input">
+                                <label for="report-start-date">From:</label>
+                                <input type="date" id="report-start-date">
+                            </div>
+                            <div class="date-input">
+                                <label for="report-end-date">To:</label>
+                                <input type="date" id="report-end-date">
+                            </div>
+                            <div class="report-buttons">
+                                <button id="generate-report" class="btn btn-primary">
+                                    <i class="fas fa-chart-line"></i> Generate Report
+                                </button>
+                                <button id="export-pdf" class="btn btn-success" disabled>
+                                    <i class="fas fa-file-pdf"></i> Export PDF
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="report-summary">
+                        <h3><i class="fas fa-info-circle"></i> Report Summary</h3>
+                        <div class="summary-cards">
+                            <div class="summary-card">
+                                <h4>Total Orders</h4>
+                                <p id="report-total-orders">0</p>
+                            </div>
+                            <div class="summary-card">
+                                <h4>Total Revenue</h4>
+                                <p id="report-total-revenue">Rs. 0</p>
+                            </div>
+                            <div class="summary-card">
+                                <h4>Average Order Value</h4>
+                                <p id="report-avg-order">Rs. 0</p>
+                            </div>
+                            <div class="summary-card paid-card">
+                                <h4>Paid Amount</h4>
+                                <p id="report-paid-amount">Rs. 0</p>
+                            </div>
+                            <div class="summary-card pending-card">
+                                <h4>Pending Amount</h4>
+                                <p id="report-pending-amount">Rs. 0</p>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="chart-container">
+                        <canvas id="sales-chart"></canvas>
+                    </div>
+                    
+                    <div class="report-details">
+                        <h3><i class="fas fa-table"></i> Report Details</h3>
+                        <div class="table-container">
+                            <table id="report-table">
+                                <thead>
+                                    <tr>
+                                        <th>Date</th>
+                                        <th>Shop Name</th>
+                                        <th>Product</th>
+                                        <th>Quantity</th>
+                                        <th>Total Amount</th>
+                                        <th>Payment Status</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <!-- Report details will be populated here -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Products Section -->
+                <section id="products" class="content-section">
+                    <header class="section-header">
+                        <div>
+                            <h2><i class="fas fa-box-open" aria-hidden="true"></i> Products Management</h2>
+                            <p>Maintain catalog pricing and metadata used across all order entries.</p>
+                        </div>
+                    </header>
+                    
+                    <div class="products-header">
+                        <button id="toggle-add-product" class="btn btn-primary">
+                            <i class="fas fa-plus"></i> Add New Product
+                        </button>
+                    </div>
+                    
+                    <!-- Add New Product Form -->
+                    <div id="add-product-section" class="add-product-section" style="display: none;">
+                        <h3><i class="fas fa-plus-circle"></i> Add New Product</h3>
+                        <div class="form-container">
+                            <form id="add-product-form">
+                                <div class="form-row">
+                                    <div class="form-group">
+                                        <label for="new-product-name"><i class="fas fa-tag"></i> Product Name</label>
+                                        <input type="text" id="new-product-name" placeholder="Enter product name" required>
+                                    </div>
+                                    <div class="form-group">
+                                        <label for="new-product-price"><i class="fas fa-money-bill"></i> Price (Rs.)</label>
+                                        <input type="number" id="new-product-price" min="1" placeholder="Enter price" required>
+                                    </div>
+                                </div>
+                                
+                                <div class="form-row">
+                                    <div class="form-group">
+                                        <label for="new-product-description"><i class="fas fa-align-left"></i> Description</label>
+                                        <textarea id="new-product-description" rows="2" placeholder="Enter product description"></textarea>
+                                    </div>
+                                </div>
+                                
+                                <div class="form-row">
+                                    <div class="form-group">
+                                        <label for="new-product-color"><i class="fas fa-palette"></i> Box Color</label>
+                                        <div class="color-options">
+                                            <div class="color-option" data-color="#2563EB" style="background-color: #2563EB;"></div>
+                                            <div class="color-option" data-color="#1F9D57" style="background-color: #1F9D57;"></div>
+                                            <div class="color-option" data-color="#0EA5E9" style="background-color: #0EA5E9;"></div>
+                                            <div class="color-option" data-color="#6366F1" style="background-color: #6366F1;"></div>
+                                            <div class="color-option" data-color="#B7791F" style="background-color: #B7791F;"></div>
+                                            <div class="color-option" data-color="#C53030" style="background-color: #C53030;"></div>
+                                            <div class="color-option" data-color="#475569" style="background-color: #475569;"></div>
+                                            <div class="color-option" data-color="#0F172A" style="background-color: #0F172A;"></div>
+                                        </div>
+                                        <input type="hidden" id="new-product-color" value="#2563EB" required>
+                                    </div>
+                                    
+                                    <div class="form-group">
+                                        <label for="new-product-icon"><i class="fas fa-icons"></i> Product Icon</label>
+                                        <div class="icon-options">
+                                            <div class="icon-option" data-icon="fa-utensils"><i class="fas fa-utensils"></i></div>
+                                            <div class="icon-option" data-icon="fa-cookie-bite"><i class="fas fa-cookie-bite"></i></div>
+                                            <div class="icon-option" data-icon="fa-birthday-cake"><i class="fas fa-birthday-cake"></i></div>
+                                            <div class="icon-option" data-icon="fa-ice-cream"><i class="fas fa-ice-cream"></i></div>
+                                            <div class="icon-option" data-icon="fa-mug-hot"><i class="fas fa-mug-hot"></i></div>
+                                            <div class="icon-option" data-icon="fa-bread-slice"><i class="fas fa-bread-slice"></i></div>
+                                            <div class="icon-option" data-icon="fa-pie-chart"><i class="fas fa-pie-chart"></i></div>
+                                            <div class="icon-option" data-icon="fa-cheese"><i class="fas fa-cheese"></i></div>
+                                            <div class="icon-option" data-icon="fa-candy-cane"><i class="fas fa-candy-cane"></i></div>
+                                            <div class="icon-option" data-icon="fa-wine-bottle"><i class="fas fa-wine-bottle"></i></div>
+                                        </div>
+                                        <input type="hidden" id="new-product-icon" value="fa-utensils" required>
+                                    </div>
+                                </div>
+                                
+                                <div class="form-actions sticky-mobile">
+                                    <button type="submit" class="btn btn-primary">
+                                        <i class="fas fa-plus"></i> Add Product
+                                    </button>
+                                    <button type="reset" class="btn btn-secondary">
+                                        <i class="fas fa-redo"></i> Reset
+                                    </button>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+                    
+                    <!-- Current Products Display -->
+                    <div class="current-products-section">
+                        <h3><i class="fas fa-boxes"></i> Current Products</h3>
+                        <div class="products-container" id="products-container">
+                            <!-- Products will be dynamically populated here -->
+                        </div>
+                    </div>
+                    
+                    <!-- Update Existing Product Prices -->
+                    <div class="update-prices-section">
+                        <h3><i class="fas fa-sliders-h"></i> Update Product Prices</h3>
+                        <div class="price-update-form">
+                            <div class="form-group">
+                                <label for="update-product">Select Product:</label>
+                                <select id="update-product">
+                                    <option value="">Select product</option>
+                                    <!-- Products will be dynamically populated -->
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label for="new-price">New Price (Rs.):</label>
+                                <input type="number" id="new-price" min="1" placeholder="Enter new price">
+                            </div>
+                            <button id="update-price-btn" class="btn btn-primary">
+                                <i class="fas fa-sync-alt"></i> Update Price
+                            </button>
+                        </div>
+                    </div>
+                </section>
+            </div>
+        </div>
+        <nav class="mobile-bottom-nav" aria-label="Mobile navigation">
+            <button type="button" class="mobile-nav-item active" data-section="dashboard" aria-current="page">
+                <i class="fas fa-tachometer-alt" aria-hidden="true"></i>
+                <span>Dashboard</span>
+            </button>
+            <button type="button" class="mobile-nav-item admin-only" data-section="add-order">
+                <i class="fas fa-plus-circle" aria-hidden="true"></i>
+                <span>Add</span>
+            </button>
+            <button type="button" class="mobile-nav-item" data-section="view-orders">
+                <i class="fas fa-list-alt" aria-hidden="true"></i>
+                <span>Orders</span>
+            </button>
+            <button type="button" class="mobile-nav-item" data-section="reports">
+                <i class="fas fa-chart-bar" aria-hidden="true"></i>
+                <span>Reports</span>
+            </button>
+            <button type="button" class="mobile-nav-item admin-only" data-section="products">
+                <i class="fas fa-box-open" aria-hidden="true"></i>
+                <span>Products</span>
+            </button>
+        </nav>
+
+        <!-- Footer -->
+        <footer class="footer">
+            <div class="footer-logo">
+                <span class="footer-mg">MG</span>
+                <span class="footer-products">PRODUCTS</span>
+            </div>
+            <p>Shop Management System &copy; <span id="current-year"></span> | Developed for Daily Shop Visits</p>
+        </footer>
+    </div>
+
+    <!-- Edit Order Modal -->
+    <div id="edit-modal" class="modal" role="dialog" aria-modal="true" aria-labelledby="edit-order-title">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 id="edit-order-title"><i class="fas fa-edit"></i> Edit Order</h3>
+                <button type="button" class="close-modal" aria-label="Close edit order dialog">&times;</button>
+            </div>
+            <div class="modal-body">
+                <!-- Edit form will be loaded here dynamically -->
+            </div>
+        </div>
+    </div>
+
+    <!-- Edit Product Modal -->
+    <div id="edit-product-modal" class="modal" role="dialog" aria-modal="true" aria-labelledby="edit-product-title">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 id="edit-product-title"><i class="fas fa-edit"></i> Edit Product</h3>
+                <button type="button" class="close-product-modal" aria-label="Close edit product dialog">&times;</button>
+            </div>
+            <div class="modal-body">
+                <!-- Edit product form will be loaded here dynamically -->
+            </div>
+        </div>
+    </div>
+
+    <!-- PDF Export Modal -->
+    <div id="pdf-export-modal" class="pdf-export-modal" role="dialog" aria-modal="true" aria-labelledby="pdf-export-title">
+        <div class="pdf-export-content">
+            <h3 id="pdf-export-title"><i class="fas fa-file-pdf"></i> Export Report as PDF</h3>
+            
+            <div class="pdf-export-options">
+                <button class="pdf-option-btn" data-type="summary">
+                    <i class="fas fa-chart-pie"></i> Export Summary Only
+                </button>
+                <button class="pdf-option-btn" data-type="detailed">
+                    <i class="fas fa-list-alt"></i> Export Detailed Report
+                </button>
+                <button class="pdf-option-btn" data-type="both">
+                    <i class="fas fa-file-alt"></i> Export Both (Summary + Details)
+                </button>
+            </div>
+            
+            <div class="pdf-export-actions">
+                <button id="cancel-export" class="btn btn-secondary" type="button">
+                    <i class="fas fa-times"></i> Cancel
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <div id="toast-region" class="toast-region" aria-live="polite" aria-atomic="true"></div>
+
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    
+    <!-- jsPDF Library for PDF Export -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.25/jspdf.plugin.autotable.min.js"></script>
+    
+    <!-- Custom Scripts as modules -->
+    <script type="module" src="firebase-config.js"></script>
+    <script type="module" src="script.js"></script>
+</body>
+</html>
