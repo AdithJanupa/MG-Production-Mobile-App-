@@ -1298,10 +1298,16 @@ textarea:disabled {
     word-break: break-word;
 }
 
+
+
 .mobile-row-actions {
     display: grid;
     grid-template-columns: repeat(3, minmax(0, 1fr));
     gap: var(--space-2);
+}
+
+.mobile-row-order-actions {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
 .mobile-row-action {
@@ -1391,8 +1397,14 @@ textarea:disabled {
     color: var(--color-danger);
 }
 
+
+
 .btn-action.mark-paid {
     color: var(--color-success);
+}
+
+.btn-action.print-order {
+    color: var(--color-accent);
 }
 
 .btn-action.compact {
@@ -1463,6 +1475,26 @@ form {
 
 .form-actions .btn {
     min-width: 8.6rem;
+}
+.print-bill-option {
+    margin-top: calc(var(--space-2) * -1);
+}
+
+.print-bill-toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-2);
+    cursor: pointer;
+    color: var(--color-text);
+    font-weight: 600;
+}
+
+.print-bill-toggle input[type="checkbox"] {
+    width: 1rem;
+    height: 1rem;
+    margin: 0;
+    accent-color: var(--color-success);
+    cursor: pointer;
 }
 .filter-summary {
     padding: var(--space-4);
@@ -2244,7 +2276,7 @@ form {
     }
 }
 
-@media (max-width: 640px) {
+@media (max-width: 1024px) {
     .table-container table.mobile-table-cards {
         min-width: 0;
         width: 100%;
@@ -2451,3 +2483,4 @@ body.keyboard-open .form-actions.sticky-mobile {
         transform: translateY(0);
     }
 }
+

@@ -4,6 +4,8 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
+import 'printing/bill_printer_service_stub.dart'
+    if (dart.library.io) 'printing/bill_printer_service_io.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -43,6 +45,7 @@ class _MGProductsHomePageState extends State<MGProductsHomePage> {
     documentRoot: 'assets/webapp',
   );
   InAppWebViewController? _webViewController;
+  late final BillPrinterService _billPrinterService;
 
   bool _serverReady = false;
   String? _startupError;
@@ -58,6 +61,9 @@ class _MGProductsHomePageState extends State<MGProductsHomePage> {
   @override
   void initState() {
     super.initState();
+    _billPrinterService = BillPrinterService();
+    unawaited(_initializeBillPrinterService());
+
     if (kIsWeb) {
       _serverReady = true;
       return;
@@ -106,6 +112,114 @@ class _MGProductsHomePageState extends State<MGProductsHomePage> {
     }
 
     await SystemNavigator.pop();
+  }
+
+  Future<void> _initializeBillPrinterService() async {
+    await _billPrinterService.initialize();
+    if (!mounted) {
+      return;
+    }
+    setState(() {});
+  }
+
+  Map<String, dynamic> _normalizeOrderPayload(dynamic payload) {
+    if (payload is Map) {
+      return payload.map((key, value) => MapEntry(key.toString(), value));
+    }
+    return <String, dynamic>{};
+  }
+
+  Future<PrinterDevice?> _showPrinterPicker(List<PrinterDevice> devices) async {
+    if (!mounted || devices.isEmpty) {
+      return null;
+    }
+
+    return showDialog<PrinterDevice>(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          title: const Text('Select Bluetooth Printer'),
+          content: SizedBox(
+            width: double.maxFinite,
+            child: ListView.builder(
+              shrinkWrap: true,
+              itemCount: devices.length,
+              itemBuilder: (itemContext, index) {
+                final device = devices[index];
+                final title = device.name.isEmpty
+                    ? device.macAddress
+                    : device.name;
+                return ListTile(
+                  title: Text(title),
+                  subtitle: Text(device.macAddress),
+                  onTap: () => Navigator.of(dialogContext).pop(device),
+                );
+              },
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(),
+              child: const Text('Cancel'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  void _showSnackMessage(String message, {bool isError = false}) {
+    if (!mounted) {
+      return;
+    }
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: isError ? Colors.red : null,
+      ),
+    );
+  }
+
+  Future<void> _openPrinterSetup() async {
+    final discovery = await _billPrinterService.discoverPrinters();
+    if (!discovery.success) {
+      _showSnackMessage(discovery.message, isError: true);
+      return;
+    }
+
+    final selected = await _showPrinterPicker(discovery.devices);
+    if (selected == null) {
+      return;
+    }
+
+    final result = await _billPrinterService.connectAndRemember(selected);
+    _showSnackMessage(result.message, isError: !result.success);
+    if (mounted) {
+      setState(() {});
+    }
+  }
+
+  Future<Map<String, dynamic>> _handlePrintBillFromWeb(
+    List<dynamic> args,
+  ) async {
+    final payload = args.isNotEmpty ? args.first : null;
+    final order = _normalizeOrderPayload(payload);
+
+    final result = await _billPrinterService.printOrderBill(
+      order: order,
+      onSelectPrinter: _showPrinterPicker,
+    );
+
+    _showSnackMessage(result.message, isError: !result.success);
+    if (mounted) {
+      setState(() {});
+    }
+
+    return <String, dynamic>{
+      'success': result.success,
+      'message': result.message,
+    };
   }
 
   @override
@@ -169,6 +283,17 @@ class _MGProductsHomePageState extends State<MGProductsHomePage> {
           title: const Text('MG PRODUCTS'),
           actions: [
             IconButton(
+              tooltip: _billPrinterService.selectedPrinterName == null
+                  ? 'Setup Bluetooth Printer'
+                  : 'Printer: ${_billPrinterService.selectedPrinterName}',
+              onPressed: _openPrinterSetup,
+              icon: Icon(
+                _billPrinterService.selectedPrinterName == null
+                    ? Icons.print_outlined
+                    : Icons.print,
+              ),
+            ),
+            IconButton(
               tooltip: 'Reload',
               onPressed: () => _webViewController?.reload(),
               icon: const Icon(Icons.refresh),
@@ -187,6 +312,10 @@ class _MGProductsHomePageState extends State<MGProductsHomePage> {
               ),
               onWebViewCreated: (controller) {
                 _webViewController = controller;
+                controller.addJavaScriptHandler(
+                  handlerName: 'printBill',
+                  callback: _handlePrintBillFromWeb,
+                );
               },
               onProgressChanged: (controller, progress) {
                 if (!mounted) {
