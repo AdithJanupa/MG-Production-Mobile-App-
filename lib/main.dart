@@ -48,15 +48,26 @@ class _MGProductsHomePageState extends State<MGProductsHomePage> {
   String? _startupError;
   double _loadingProgress = 0;
 
+  WebUri get _initialUri {
+    if (kIsWeb) {
+      return WebUri.uri(Uri.base.resolve('assets/webapp/index.html'));
+    }
+    return WebUri('http://localhost:8080/index.html');
+  }
+
   @override
   void initState() {
     super.initState();
+    if (kIsWeb) {
+      _serverReady = true;
+      return;
+    }
     _startLocalServer();
   }
 
   @override
   void dispose() {
-    if (_localhostServer.isRunning()) {
+    if (!kIsWeb && _localhostServer.isRunning()) {
       unawaited(_localhostServer.close());
     }
     super.dispose();
@@ -167,9 +178,8 @@ class _MGProductsHomePageState extends State<MGProductsHomePage> {
         body: Stack(
           children: [
             InAppWebView(
-              initialUrlRequest: URLRequest(
-                url: WebUri('http://localhost:8080/index.html'),
-              ),
+              initialUrlRequest: URLRequest(url: _initialUri),
+
               initialSettings: InAppWebViewSettings(
                 javaScriptEnabled: true,
                 mediaPlaybackRequiresUserGesture: false,
