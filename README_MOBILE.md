@@ -45,3 +45,12 @@ flutter config --android-sdk "C:\\Users\\<YourUser>\\AppData\\Local\\Android\\Sd
 flutter doctor --android-licenses
 flutter doctor -v
 ```
+
+## Bluetooth Bill Printing (PT-210)
+
+1. Pair the **PT-210** printer in your phone Bluetooth settings first.
+2. Open the app and tap the **printer icon** in the top bar.
+3. Select your PT-210 from paired devices to connect.
+4. Add and save an order.
+5. After save, choose **OK** on the prompt **"Print bill now?"**.
+6. The printed bill includes logo, print time, bill/order details, payment status, and note.

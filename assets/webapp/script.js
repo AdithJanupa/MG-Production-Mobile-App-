@@ -63,6 +63,7 @@ const filterProductSelect = document.getElementById('filter-product');
 const updateProductSelect = document.getElementById('update-product');
 const paymentStatusSelect = document.getElementById('payment-status');
 const paidDateInput = document.getElementById('paid-date');
+const printBillAfterSaveInput = document.getElementById('print-bill-after-save');
 
 // Report buttons
 const generateReportBtn = document.getElementById('generate-report');
@@ -110,7 +111,7 @@ let currentFilteredOrders = [];
 let currentUser = null;
 let deferredInstallPrompt = null;
 const MOBILE_BREAKPOINT = 1024;
-const MOBILE_TABLE_BREAKPOINT = 640;
+const MOBILE_TABLE_BREAKPOINT = 1024;
 const MOBILE_KEYBOARD_THRESHOLD = 120;
 const MODAL_IDS = ['edit-modal', 'edit-product-modal', 'pdf-export-modal'];
 const TABLE_ADAPTERS = {
@@ -2043,7 +2044,7 @@ function loadOrders() {
 }
 
 // Display orders in table
-function renderOrderDesktopRow(order, paymentStatus, statusBadge, editDisabled, deleteDisabled, markPaidDisabled) {
+function renderOrderDesktopRow(order, paymentStatus, statusBadge, editDisabled, deleteDisabled, printDisabled, markPaidDisabled) {
     return `
         <td>${formatDate(order.date)}</td>
         <td>${order.shopName}</td>
@@ -2062,6 +2063,9 @@ function renderOrderDesktopRow(order, paymentStatus, statusBadge, editDisabled, 
             <button class="btn-action delete-order" data-id="${order.id}" aria-label="Delete order" ${deleteDisabled}>
                 <i class="fas fa-trash"></i>
             </button>
+            <button class="btn-action print-order" data-id="${order.id}" aria-label="Print bill" ${printDisabled}>
+                <i class="fas fa-print"></i>
+            </button>
             <button class="btn-action mark-paid" data-id="${order.id}" data-status="${paymentStatus}" aria-label="${paymentStatus === 'paid' ? 'Mark as unpaid' : 'Mark as paid'}" ${markPaidDisabled}>
                 <i class="fas ${paymentStatus === 'paid' ? 'fa-undo' : 'fa-check'}"></i>
             </button>
@@ -2069,7 +2073,7 @@ function renderOrderDesktopRow(order, paymentStatus, statusBadge, editDisabled, 
     `;
 }
 
-function renderOrderMobileRow(order, paymentStatus, statusBadge, editDisabled, deleteDisabled, markPaidDisabled) {
+function renderOrderMobileRow(order, paymentStatus, statusBadge, editDisabled, deleteDisabled, printDisabled, markPaidDisabled) {
     const noteText = order.note ? order.note : '-';
     const markPaidText = paymentStatus === 'paid' ? 'Mark Unpaid' : 'Mark Paid';
 
@@ -2110,7 +2114,7 @@ function renderOrderMobileRow(order, paymentStatus, statusBadge, editDisabled, d
                         <span class="mobile-row-value">${noteText}</span>
                     </div>
                 </div>
-                <div class="mobile-row-actions" role="group" aria-label="Order actions">
+                <div class="mobile-row-actions mobile-row-order-actions" role="group" aria-label="Order actions">
                     <button class="btn-action edit-order mobile-row-action" data-id="${order.id}" aria-label="Edit order" ${editDisabled}>
                         <i class="fas fa-edit" aria-hidden="true"></i>
                         <span>Edit</span>
@@ -2118,6 +2122,10 @@ function renderOrderMobileRow(order, paymentStatus, statusBadge, editDisabled, d
                     <button class="btn-action delete-order mobile-row-action" data-id="${order.id}" aria-label="Delete order" ${deleteDisabled}>
                         <i class="fas fa-trash" aria-hidden="true"></i>
                         <span>Delete</span>
+                    </button>
+                    <button class="btn-action print-order mobile-row-action" data-id="${order.id}" aria-label="Print bill" ${printDisabled}>
+                        <i class="fas fa-print" aria-hidden="true"></i>
+                        <span>Print</span>
                     </button>
                     <button class="btn-action mark-paid mobile-row-action" data-id="${order.id}" data-status="${paymentStatus}" aria-label="${paymentStatus === 'paid' ? 'Mark as unpaid' : 'Mark as paid'}" ${markPaidDisabled}>
                         <i class="fas ${paymentStatus === 'paid' ? 'fa-undo' : 'fa-check'}" aria-hidden="true"></i>
@@ -2159,13 +2167,14 @@ function displayOrders(orders) {
         // Disable action buttons for non-admin users
         const editDisabled = AUTH_STATE.role !== 'admin' ? 'disabled' : '';
         const deleteDisabled = AUTH_STATE.role !== 'admin' ? 'disabled' : '';
+        const printDisabled = AUTH_STATE.role !== 'admin' ? 'disabled' : '';
         const markPaidDisabled = AUTH_STATE.role !== 'admin' ? 'disabled' : '';
         
         if (isMobileTableViewport()) {
             row.classList.add('mobile-table-row');
-            row.innerHTML = renderOrderMobileRow(order, paymentStatus, statusBadge, editDisabled, deleteDisabled, markPaidDisabled);
+            row.innerHTML = renderOrderMobileRow(order, paymentStatus, statusBadge, editDisabled, deleteDisabled, printDisabled, markPaidDisabled);
         } else {
-            row.innerHTML = renderOrderDesktopRow(order, paymentStatus, statusBadge, editDisabled, deleteDisabled, markPaidDisabled);
+            row.innerHTML = renderOrderDesktopRow(order, paymentStatus, statusBadge, editDisabled, deleteDisabled, printDisabled, markPaidDisabled);
         }
         
         ordersTableBody.appendChild(row);
@@ -2223,6 +2232,13 @@ function attachOrderActionListeners() {
         btn.addEventListener('click', function() {
             const orderId = this.getAttribute('data-id');
             deleteOrder(orderId);
+        });
+    });
+
+    document.querySelectorAll('.print-order').forEach(btn => {
+        btn.addEventListener('click', function() {
+            const orderId = this.getAttribute('data-id');
+            printOrderBill(orderId);
         });
     });
     
@@ -2558,6 +2574,52 @@ function resetDashboard() {
     sidebarPendingPaymentsEl.textContent = 'Rs. 0';
 }
 
+// Request bill printing from Flutter app
+async function requestBillPrint(orderData) {
+    if (!window.flutter_inappwebview || typeof window.flutter_inappwebview.callHandler !== 'function') {
+        showNotification('Bill printing is available in the mobile app.', 'warning');
+        return;
+    }
+
+    try {
+        const result = await window.flutter_inappwebview.callHandler('printBill', orderData);
+        if (result && result.success) {
+            showNotification(result.message || 'Bill printed successfully!', 'success');
+        } else {
+            showNotification((result && result.message) || 'Bill printing failed.', 'warning');
+        }
+    } catch (error) {
+        console.error('Error while printing bill: ', error);
+        showNotification('Unable to print bill. Please check printer connection.', 'error');
+    }
+}
+function buildPrintableOrder(order) {
+    const paymentStatus = order.paymentStatus || (order.paidDate ? 'paid' : 'non-paid');
+
+    return {
+        id: order.id || '',
+        billNumber: order.billNumber || '',
+        date: order.date || '',
+        shopName: order.shopName || '',
+        product: order.product || '',
+        quantity: Number(order.quantity) || 0,
+        rate: Number(order.rate) || 0,
+        total: Number(order.total) || 0,
+        paymentStatus,
+        paidDate: order.paidDate || '',
+        note: order.note || ''
+    };
+}
+
+async function printOrderBill(orderId) {
+    const order = allOrders.find(o => o.id === orderId);
+    if (!order) {
+        showNotification('Order not found for printing.', 'warning');
+        return;
+    }
+
+    await requestBillPrint(buildPrintableOrder(order));
+}
 // Save order to Firebase
 async function saveOrder() {
     if (!checkAdminPermission('save orders')) return;
@@ -2572,6 +2634,7 @@ async function saveOrder() {
     const paymentStatus = document.getElementById('payment-status').value;
     const paidDate = paymentStatus === 'paid' ? document.getElementById('paid-date').value : null;
     const note = document.getElementById('note').value;
+    const shouldPrintBillAfterSave = Boolean(printBillAfterSaveInput?.checked);
     
     const order = {
         shopName,
@@ -2591,6 +2654,15 @@ async function saveOrder() {
         const docRef = await addDoc(collection(db, "orders"), order);
         console.log("Order saved with ID: ", docRef.id);
         showNotification('Order saved successfully!', 'success');
+
+        const savedOrder = {
+            id: docRef.id,
+            ...order
+        };
+
+        if (shouldPrintBillAfterSave) {
+            await requestBillPrint(buildPrintableOrder(savedOrder));
+        }
         
         // Auto reset form
         orderForm.reset();
@@ -3104,3 +3176,4 @@ function showNotification(message, type = 'info') {
 
 // Initialize PDF export modal
 initPDFExportModal();
+
