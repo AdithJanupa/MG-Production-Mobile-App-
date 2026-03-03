@@ -50,6 +50,7 @@ class _MGProductsHomePageState extends State<MGProductsHomePage> {
   bool _serverReady = false;
   String? _startupError;
   double _loadingProgress = 0;
+  int _progressBucket = -1;
 
   WebUri get _initialUri {
     if (kIsWeb) {
@@ -322,8 +323,17 @@ class _MGProductsHomePageState extends State<MGProductsHomePage> {
                   return;
                 }
 
+                final clampedProgress = progress.clamp(0, 100);
+                final nextBucket = clampedProgress >= 100
+                    ? 10
+                    : (clampedProgress / 10).floor();
+                if (nextBucket == _progressBucket) {
+                  return;
+                }
+                _progressBucket = nextBucket;
+
                 setState(() {
-                  _loadingProgress = progress / 100;
+                  _loadingProgress = nextBucket / 10;
                 });
               },
               onReceivedError: (controller, request, error) {

@@ -200,10 +200,11 @@ class BillPrinterService {
         success: true,
         message: 'Bill printed successfully.',
       );
-    } catch (_) {
-      return const BillPrintResult(
+    } catch (error, stackTrace) {
+      debugPrint('Bill printing failed: $error\n$stackTrace');
+      return BillPrintResult(
         success: false,
-        message: 'Printing failed while preparing the bill.',
+        message: _friendlyPrintError(error),
       );
     }
   }
@@ -312,21 +313,28 @@ class BillPrinterService {
     bytes.addAll(generator.reset());
     final logoImage = await _loadLogoImage();
     if (logoImage != null) {
-      bytes.addAll(generator.imageRaster(logoImage, align: PosAlign.center));
+      try {
+        bytes.addAll(generator.imageRaster(logoImage, align: PosAlign.center));
+      } catch (error, stackTrace) {
+        debugPrint('Skipping logo image due to raster error: $error');
+        debugPrintStack(stackTrace: stackTrace);
+      }
     }
 
     final now = DateTime.now();
-    final billNumber = _stringValue(order['billNumber']);
-    final orderDate = _stringValue(order['date']);
-    final orderId = _stringValue(order['id']);
-    final shopName = _stringValue(order['shopName']);
-    final productName = _stringValue(order['product']);
+    final billNumber = _safePrintText(_stringValue(order['billNumber']));
+    final orderDate = _safePrintText(_stringValue(order['date']));
+    final orderId = _safePrintText(_stringValue(order['id']));
+    final shopName = _safePrintText(_stringValue(order['shopName']));
+    final productName = _safePrintText(_stringValue(order['product']));
     final quantity = _intValue(order['quantity']);
     final rate = _doubleValue(order['rate']);
     final total = _doubleValue(order['total']);
-    final paymentStatus = _stringValue(order['paymentStatus']).toLowerCase();
-    final paidDate = _stringValue(order['paidDate']);
-    final note = _stringValue(order['note']);
+    final paymentStatus = _safePrintText(
+      _stringValue(order['paymentStatus']),
+    ).toLowerCase();
+    final paidDate = _safePrintText(_stringValue(order['paidDate']));
+    final note = _safePrintText(_stringValue(order['note']));
 
     bytes.addAll(
       generator.text(
@@ -491,6 +499,9 @@ class BillPrinterService {
       return value;
     }
     if (value is double) {
+      if (!value.isFinite) {
+        return 0;
+      }
       return value.round();
     }
     return int.tryParse(value?.toString() ?? '') ?? 0;
@@ -498,12 +509,53 @@ class BillPrinterService {
 
   double _doubleValue(dynamic value) {
     if (value is double) {
-      return value;
+      return value.isFinite ? value : 0;
     }
     if (value is int) {
       return value.toDouble();
     }
-    return double.tryParse(value?.toString() ?? '') ?? 0;
+    final parsed = double.tryParse(value?.toString() ?? '');
+    if (parsed == null || !parsed.isFinite) {
+      return 0;
+    }
+    return parsed;
+  }
+
+  String _safePrintText(String value) {
+    if (value.isEmpty) {
+      return value;
+    }
+
+    final sanitized = value.runes
+        .map((rune) {
+          if (rune == 10 || rune == 13 || rune == 9) {
+            return 32;
+          }
+
+          // ASCII printable + Latin-1 range supported by current encoder.
+          if ((rune >= 32 && rune <= 126) || (rune >= 160 && rune <= 255)) {
+            return rune;
+          }
+          return 63; // '?'
+        })
+        .toList(growable: false);
+
+    return String.fromCharCodes(sanitized).trim();
+  }
+
+  String _friendlyPrintError(Object error) {
+    final message = error.toString();
+    final lower = message.toLowerCase();
+
+    if (lower.contains('latin') || lower.contains('codec')) {
+      return 'Bill has unsupported characters. Please use English letters, numbers, and symbols only.';
+    }
+
+    if (lower.contains('column') || lower.contains('width')) {
+      return 'Bill layout error while preparing print data.';
+    }
+
+    return 'Printing failed while preparing the bill. $message';
   }
 
   String _formatDateTime(DateTime dateTime) {

@@ -97,7 +97,7 @@ const addProductSection = document.getElementById('add-product-section');
 const themeToggle = document.getElementById('themeToggle');
 
 // Chart
-let salesChart;
+let salesChart = null;
 
 // Global variables
 let allOrders = [];
@@ -110,6 +110,8 @@ let currentReportEndDate = '';
 let currentFilteredOrders = [];
 let currentUser = null;
 let deferredInstallPrompt = null;
+let unsubscribeOrdersListener = null;
+let unsubscribeProductsListener = null;
 const MOBILE_BREAKPOINT = 1024;
 const MOBILE_TABLE_BREAKPOINT = 1024;
 const MOBILE_KEYBOARD_THRESHOLD = 120;
@@ -154,7 +156,11 @@ const AUTH_STATE = {
 // Initialize the application
 document.addEventListener('DOMContentLoaded', function() {
     registerServiceWorker();
-    initializePWAInstallPrompt();
+    if (!isFlutterHostEnvironment()) {
+        initializePWAInstallPrompt();
+    } else {
+        hideInstallButton();
+    }
     initializeMobileSidebar();
     initializeNetworkStatus();
     initializeMobileViewportSupport();
@@ -173,20 +179,32 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // Setup event listeners
     setupEventListeners();
+    initializeDelegatedTableActions();
     setActiveNavigation('dashboard');
     updatePageContext('dashboard');
     showGlobalLoadingSkeletons();
-    
-    // Initialize chart
-    initializeChart();
     
     // Check for saved login state
     const savedUser = localStorage.getItem('currentUser');
     if (savedUser) {
         const user = JSON.parse(savedUser);
-        loginUser(user.username, user.role);
+        setTimeout(() => {
+            loginUser(user.username, user.role);
+        }, 50);
     }
 });
+
+function debounce(callback, wait = 180) {
+    let timeoutId = null;
+    return (...args) => {
+        if (timeoutId) {
+            clearTimeout(timeoutId);
+        }
+        timeoutId = setTimeout(() => {
+            callback(...args);
+        }, wait);
+    };
+}
 
 // Setup event listeners
 function setupEventListeners() {
@@ -298,9 +316,10 @@ function setupEventListeners() {
     });
     
     // Filter controls
+    const debouncedFilterOrders = debounce(() => filterOrders(), 180);
     document.getElementById('filter-date').addEventListener('change', filterOrders);
     filterProductSelect.addEventListener('change', filterOrders);
-    document.getElementById('filter-shop').addEventListener('input', filterOrders);
+    document.getElementById('filter-shop').addEventListener('input', debouncedFilterOrders);
     document.getElementById('filter-payment-status').addEventListener('change', filterOrders);
     document.getElementById('clear-filters').addEventListener('click', clearFilters);
     
@@ -448,8 +467,10 @@ function loginUser(username, role) {
     showNotification(`Welcome ${username}! Logged in as ${role}`, 'success');
     
     // Load data
-    loadProducts();
-    loadOrders();
+    requestAnimationFrame(() => {
+        loadProducts();
+        loadOrders();
+    });
 }
 
 // Handle logout
@@ -470,7 +491,20 @@ function handleLogout() {
     
     // Clear data
     allOrders = [];
+    filteredOrders = [];
+    currentFilteredOrders = [];
     allProducts = [];
+    productPrices = {};
+
+    if (typeof unsubscribeOrdersListener === 'function') {
+        unsubscribeOrdersListener();
+        unsubscribeOrdersListener = null;
+    }
+
+    if (typeof unsubscribeProductsListener === 'function') {
+        unsubscribeProductsListener();
+        unsubscribeProductsListener = null;
+    }
 
     closeMobileSidebar();
     setActiveNavigation('dashboard');
@@ -480,8 +514,16 @@ function handleLogout() {
     showNotification('Logged out successfully', 'info');
 }
 
+function isFlutterHostEnvironment() {
+    return typeof window.flutter_inappwebview !== 'undefined' || /\bwv\b/.test(navigator.userAgent);
+}
+
 // Register service worker (only on secure web contexts)
 function registerServiceWorker() {
+    if (isFlutterHostEnvironment()) {
+        return;
+    }
+
     const isWebContext = window.location.protocol === 'http:' || window.location.protocol === 'https:';
     if (!isWebContext || !('serviceWorker' in navigator)) {
         return;
@@ -817,9 +859,15 @@ function refreshResponsiveTableViews() {
         return;
     }
 
-    displayOrders(getDisplayedOrdersForRepaint());
-    updatePendingPayments();
-    updateRecentOrders(allOrders.slice(0, 5));
+    const activeSection = getActiveSectionId();
+    if (activeSection === 'view-orders') {
+        displayOrders(getDisplayedOrdersForRepaint());
+    }
+
+    if (activeSection === 'dashboard') {
+        updatePendingPayments();
+        updateRecentOrders(allOrders.slice(0, 5));
+    }
 
     if (currentReportStartDate && currentReportEndDate) {
         updateReportTable(currentReportOrders);
@@ -1439,11 +1487,16 @@ function exportFilteredOrdersPDF() {
 function loadProducts() {
     if (!AUTH_STATE.isLoggedIn) return;
 
+    if (typeof unsubscribeProductsListener === 'function') {
+        unsubscribeProductsListener();
+        unsubscribeProductsListener = null;
+    }
+
     showProductsSkeleton();
     
     const productsQuery = query(collection(db, "products"), orderBy("name"));
     
-    const unsubscribe = onSnapshot(productsQuery, (querySnapshot) => {
+    unsubscribeProductsListener = onSnapshot(productsQuery, (querySnapshot) => {
         allProducts = [];
         productPrices = {};
         
@@ -1992,7 +2045,13 @@ function switchSection(sectionId) {
     if (sectionId === 'dashboard') {
         updateDashboard();
     } else if (sectionId === 'view-orders') {
-        displayOrders(allOrders);
+        if (hasActiveOrderFilters()) {
+            filterOrders(true);
+        } else {
+            displayOrders(allOrders);
+        }
+    } else if (sectionId === 'reports') {
+        ensureChartInitialized();
     }
 }
 
@@ -2017,21 +2076,37 @@ function updateRateByProduct() {
 function loadOrders() {
     if (!AUTH_STATE.isLoggedIn) return;
 
+    if (typeof unsubscribeOrdersListener === 'function') {
+        unsubscribeOrdersListener();
+        unsubscribeOrdersListener = null;
+    }
+
     renderTableSkeleton(ordersTableBody, 11);
     renderTableSkeleton(recentOrdersTableBody, 7, 3);
     renderTableSkeleton(pendingPaymentsTableBody, 7, 3);
     
     const ordersQuery = query(collection(db, "orders"), orderBy("date", "desc"));
     
-    const unsubscribe = onSnapshot(ordersQuery, (querySnapshot) => {
+    unsubscribeOrdersListener = onSnapshot(ordersQuery, (querySnapshot) => {
         allOrders = [];
         querySnapshot.forEach((doc) => {
             const order = doc.data();
             order.id = doc.id;
             allOrders.push(order);
         });
-        
-        displayOrders(allOrders);
+
+        const viewOrdersActive = getActiveSectionId() === 'view-orders';
+        if (viewOrdersActive) {
+            if (hasActiveOrderFilters()) {
+                filterOrders(true);
+            } else {
+                displayOrders(allOrders);
+            }
+        } else {
+            filteredOrders = allOrders;
+            currentFilteredOrders = allOrders;
+        }
+
         updateDashboard();
         updatePendingPayments();
         
@@ -2138,7 +2213,6 @@ function renderOrderMobileRow(order, paymentStatus, statusBadge, editDisabled, d
 }
 
 function displayOrders(orders) {
-    ordersTableBody.innerHTML = '';
     filteredOrders = orders;
     currentFilteredOrders = orders;
     
@@ -2157,33 +2231,26 @@ function displayOrders(orders) {
         applyResponsiveTableClasses();
         return;
     }
-    
-    orders.forEach(order => {
-        const row = document.createElement('tr');
+
+    const isMobile = isMobileTableViewport();
+    const isAdmin = AUTH_STATE.role === 'admin';
+    const editDisabled = isAdmin ? '' : 'disabled';
+    const deleteDisabled = isAdmin ? '' : 'disabled';
+    const printDisabled = isAdmin ? '' : 'disabled';
+    const markPaidDisabled = isAdmin ? '' : 'disabled';
+
+    const rowsHtml = orders.map((order) => {
         const paymentStatus = order.paymentStatus || (order.paidDate ? 'paid' : 'non-paid');
         const statusText = paymentStatus === 'paid' ? 'Paid' : 'Non-Paid';
         const statusBadge = `<span class="payment-badge ${paymentStatus}">${statusText}</span>`;
-        
-        // Disable action buttons for non-admin users
-        const editDisabled = AUTH_STATE.role !== 'admin' ? 'disabled' : '';
-        const deleteDisabled = AUTH_STATE.role !== 'admin' ? 'disabled' : '';
-        const printDisabled = AUTH_STATE.role !== 'admin' ? 'disabled' : '';
-        const markPaidDisabled = AUTH_STATE.role !== 'admin' ? 'disabled' : '';
-        
-        if (isMobileTableViewport()) {
-            row.classList.add('mobile-table-row');
-            row.innerHTML = renderOrderMobileRow(order, paymentStatus, statusBadge, editDisabled, deleteDisabled, printDisabled, markPaidDisabled);
-        } else {
-            row.innerHTML = renderOrderDesktopRow(order, paymentStatus, statusBadge, editDisabled, deleteDisabled, printDisabled, markPaidDisabled);
-        }
-        
-        ordersTableBody.appendChild(row);
-    });
-    
-    // Add event listeners to action buttons for admin only
-    if (AUTH_STATE.role === 'admin') {
-        attachOrderActionListeners();
-    }
+        const rowContent = isMobile
+            ? renderOrderMobileRow(order, paymentStatus, statusBadge, editDisabled, deleteDisabled, printDisabled, markPaidDisabled)
+            : renderOrderDesktopRow(order, paymentStatus, statusBadge, editDisabled, deleteDisabled, printDisabled, markPaidDisabled);
+        const rowClass = isMobile ? ' class="mobile-table-row"' : '';
+        return `<tr${rowClass}>${rowContent}</tr>`;
+    }).join('');
+
+    ordersTableBody.innerHTML = rowsHtml;
     
     // Update filter summary
     updateFilterSummary(orders);
@@ -2217,38 +2284,66 @@ function updateFilterSummary(orders) {
     exportFilteredPdfBtn.disabled = totalOrders === 0 || AUTH_STATE.role !== 'admin';
 }
 
-// Attach event listeners to order action buttons
-function attachOrderActionListeners() {
-    if (AUTH_STATE.role !== 'admin') return;
-    
-    document.querySelectorAll('.edit-order').forEach(btn => {
-        btn.addEventListener('click', function() {
-            const orderId = this.getAttribute('data-id');
-            editOrder(orderId);
-        });
-    });
-    
-    document.querySelectorAll('.delete-order').forEach(btn => {
-        btn.addEventListener('click', function() {
-            const orderId = this.getAttribute('data-id');
-            deleteOrder(orderId);
-        });
-    });
+function initializeDelegatedTableActions() {
+    if (ordersTableBody) {
+        ordersTableBody.addEventListener('click', (event) => {
+            const button = event.target.closest('button');
+            if (!button || !ordersTableBody.contains(button) || AUTH_STATE.role !== 'admin') {
+                return;
+            }
 
-    document.querySelectorAll('.print-order').forEach(btn => {
-        btn.addEventListener('click', function() {
-            const orderId = this.getAttribute('data-id');
-            printOrderBill(orderId);
+            const orderId = button.getAttribute('data-id');
+            if (!orderId) {
+                return;
+            }
+
+            if (button.classList.contains('edit-order')) {
+                editOrder(orderId);
+                return;
+            }
+            if (button.classList.contains('delete-order')) {
+                deleteOrder(orderId);
+                return;
+            }
+            if (button.classList.contains('print-order')) {
+                printOrderBill(orderId);
+                return;
+            }
+            if (button.classList.contains('mark-paid')) {
+                const currentStatus = button.getAttribute('data-status');
+                togglePaymentStatus(orderId, currentStatus);
+            }
         });
-    });
-    
-    document.querySelectorAll('.mark-paid').forEach(btn => {
-        btn.addEventListener('click', function() {
-            const orderId = this.getAttribute('data-id');
-            const currentStatus = this.getAttribute('data-status');
-            togglePaymentStatus(orderId, currentStatus);
+    }
+
+    if (pendingPaymentsTableBody) {
+        pendingPaymentsTableBody.addEventListener('click', (event) => {
+            const button = event.target.closest('.btn-collect');
+            if (!button || !pendingPaymentsTableBody.contains(button) || AUTH_STATE.role !== 'admin') {
+                return;
+            }
+
+            const orderId = button.getAttribute('data-id');
+            if (orderId) {
+                markAsPaid(orderId);
+            }
         });
-    });
+    }
+
+    if (recentOrdersTableBody) {
+        recentOrdersTableBody.addEventListener('click', (event) => {
+            const button = event.target.closest('.mark-paid');
+            if (!button || !recentOrdersTableBody.contains(button) || AUTH_STATE.role !== 'admin') {
+                return;
+            }
+
+            const orderId = button.getAttribute('data-id');
+            const currentStatus = button.getAttribute('data-status');
+            if (orderId) {
+                togglePaymentStatus(orderId, currentStatus);
+            }
+        });
+    }
 }
 
 // Update pending payments table in dashboard
@@ -2306,8 +2401,6 @@ function renderPendingPaymentMobileRow(order, daysPending, daysClass, collectDis
 }
 
 function updatePendingPayments() {
-    pendingPaymentsTableBody.innerHTML = '';
-    
     // Get non-paid orders
     const nonPaidOrders = allOrders.filter(order => {
         const paymentStatus = order.paymentStatus || (order.paidDate ? 'paid' : 'non-paid');
@@ -2328,35 +2421,23 @@ function updatePendingPayments() {
         applyResponsiveTableClasses();
         return;
     }
-    
-    nonPaidOrders.forEach(order => {
-        const row = document.createElement('tr');
+
+    const isMobile = isMobileTableViewport();
+    const collectDisabled = AUTH_STATE.role === 'admin' ? '' : 'disabled';
+    const today = new Date();
+
+    const rowsHtml = nonPaidOrders.map((order) => {
         const orderDate = new Date(order.date);
-        const today = new Date();
         const daysPending = Math.floor((today - orderDate) / (1000 * 60 * 60 * 24));
         const daysClass = daysPending > 7 ? 'overdue' : '';
-        
-        const collectDisabled = AUTH_STATE.role !== 'admin' ? 'disabled' : '';
-        
-        if (isMobileTableViewport()) {
-            row.classList.add('mobile-table-row');
-            row.innerHTML = renderPendingPaymentMobileRow(order, daysPending, daysClass, collectDisabled);
-        } else {
-            row.innerHTML = renderPendingPaymentDesktopRow(order, daysPending, daysClass, collectDisabled);
-        }
-        
-        pendingPaymentsTableBody.appendChild(row);
-    });
-    
-    // Add event listeners to collect buttons for admin only
-    if (AUTH_STATE.role === 'admin') {
-        document.querySelectorAll('.btn-collect').forEach(btn => {
-            btn.addEventListener('click', function() {
-                const orderId = this.getAttribute('data-id');
-                markAsPaid(orderId);
-            });
-        });
-    }
+        const rowContent = isMobile
+            ? renderPendingPaymentMobileRow(order, daysPending, daysClass, collectDisabled)
+            : renderPendingPaymentDesktopRow(order, daysPending, daysClass, collectDisabled);
+        const rowClass = isMobile ? ' class="mobile-table-row"' : '';
+        return `<tr${rowClass}>${rowContent}</tr>`;
+    }).join('');
+
+    pendingPaymentsTableBody.innerHTML = rowsHtml;
 
     applyResponsiveTableClasses();
 }
@@ -2468,8 +2549,6 @@ function renderRecentOrderMobileRow(order, paymentStatus, statusBadge, markPaidD
 }
 
 function updateRecentOrders(orders) {
-    recentOrdersTableBody.innerHTML = '';
-    
     if (orders.length === 0) {
         recentOrdersTableBody.innerHTML = `
             <tr>
@@ -2483,35 +2562,22 @@ function updateRecentOrders(orders) {
         applyResponsiveTableClasses();
         return;
     }
-    
-    orders.forEach(order => {
-        const row = document.createElement('tr');
+
+    const isMobile = isMobileTableViewport();
+    const markPaidDisabled = AUTH_STATE.role === 'admin' ? '' : 'disabled';
+
+    const rowsHtml = orders.map((order) => {
         const paymentStatus = order.paymentStatus || (order.paidDate ? 'paid' : 'non-paid');
         const statusText = paymentStatus === 'paid' ? 'Paid' : 'Non-Paid';
         const statusBadge = `<span class="payment-badge ${paymentStatus}">${statusText}</span>`;
-        
-        const markPaidDisabled = AUTH_STATE.role !== 'admin' ? 'disabled' : '';
-        
-        if (isMobileTableViewport()) {
-            row.classList.add('mobile-table-row');
-            row.innerHTML = renderRecentOrderMobileRow(order, paymentStatus, statusBadge, markPaidDisabled);
-        } else {
-            row.innerHTML = renderRecentOrderDesktopRow(order, paymentStatus, statusBadge, markPaidDisabled);
-        }
-        
-        recentOrdersTableBody.appendChild(row);
-    });
-    
-    // Add event listeners to mark as paid buttons in recent orders for admin only
-    if (AUTH_STATE.role === 'admin') {
-        document.querySelectorAll('#recent-orders-table .mark-paid').forEach(btn => {
-            btn.addEventListener('click', function() {
-                const orderId = this.getAttribute('data-id');
-                const currentStatus = this.getAttribute('data-status');
-                togglePaymentStatus(orderId, currentStatus);
-            });
-        });
-    }
+        const rowContent = isMobile
+            ? renderRecentOrderMobileRow(order, paymentStatus, statusBadge, markPaidDisabled)
+            : renderRecentOrderDesktopRow(order, paymentStatus, statusBadge, markPaidDisabled);
+        const rowClass = isMobile ? ' class="mobile-table-row"' : '';
+        return `<tr${rowClass}>${rowContent}</tr>`;
+    }).join('');
+
+    recentOrdersTableBody.innerHTML = rowsHtml;
 
     applyResponsiveTableClasses();
 }
@@ -2522,40 +2588,44 @@ function updateDashboard() {
         resetDashboard();
         return;
     }
-    
-    // Calculate totals
+
     const totalOrders = allOrders.length;
-    const totalRevenue = allOrders.reduce((sum, order) => sum + parseFloat(order.total), 0);
-    
-    // Today's data
     const today = new Date().toISOString().split('T')[0];
-    const todayOrders = allOrders.filter(order => order.date === today);
-    const todayRevenue = todayOrders.reduce((sum, order) => sum + parseFloat(order.total), 0);
-    
-    // Active shops (unique shops with orders)
-    const activeShops = [...new Set(allOrders.map(order => order.shopName))].length;
-    
-    // Payment analysis
-    const paidOrders = allOrders.filter(order => {
+    const uniqueShops = new Set();
+    let totalRevenue = 0;
+    let todayOrdersCount = 0;
+    let todayRevenue = 0;
+    let paidAmount = 0;
+    let pendingAmount = 0;
+
+    for (const order of allOrders) {
+        const orderTotal = parseFloat(order.total || 0);
+        totalRevenue += orderTotal;
+
+        if (order.date === today) {
+            todayOrdersCount += 1;
+            todayRevenue += orderTotal;
+        }
+
+        if (order.shopName) {
+            uniqueShops.add(order.shopName);
+        }
+
         const paymentStatus = order.paymentStatus || (order.paidDate ? 'paid' : 'non-paid');
-        return paymentStatus === 'paid';
-    });
-    
-    const nonPaidOrders = allOrders.filter(order => {
-        const paymentStatus = order.paymentStatus || (order.paidDate ? 'paid' : 'non-paid');
-        return paymentStatus === 'non-paid';
-    });
-    
-    const paidAmount = paidOrders.reduce((sum, order) => sum + parseFloat(order.total), 0);
-    const pendingAmount = nonPaidOrders.reduce((sum, order) => sum + parseFloat(order.total), 0);
+        if (paymentStatus === 'paid') {
+            paidAmount += orderTotal;
+        } else {
+            pendingAmount += orderTotal;
+        }
+    }
     
     // Update UI
     totalOrdersEl.textContent = totalOrders;
     totalRevenueEl.textContent = `Rs. ${totalRevenue.toFixed(2)}`;
-    todayOrdersEl.textContent = todayOrders.length;
+    todayOrdersEl.textContent = todayOrdersCount;
     todayRevenueEl.textContent = `Rs. ${todayRevenue.toFixed(2)}`;
     dashboardTodayRevenueEl.textContent = `Rs. ${todayRevenue.toFixed(2)}`;
-    activeShopsEl.textContent = activeShops;
+    activeShopsEl.textContent = uniqueShops.size;
     dashboardPendingPaymentsEl.textContent = `Rs. ${pendingAmount.toFixed(2)}`;
     paidAmountEl.textContent = `Rs. ${paidAmount.toFixed(2)}`;
     sidebarPendingPaymentsEl.textContent = `Rs. ${pendingAmount.toFixed(2)}`;
@@ -2871,7 +2941,7 @@ async function deleteOrder(orderId) {
 }
 
 // Filter orders
-function filterOrders() {
+function filterOrders(shouldRender = true) {
     const filterDate = document.getElementById('filter-date').value;
     const filterProduct = filterProductSelect.value;
     const filterShop = document.getElementById('filter-shop').value.toLowerCase();
@@ -2900,8 +2970,13 @@ function filterOrders() {
         });
     }
     
+    filteredOrders = filtered;
     currentFilteredOrders = filtered;
-    displayOrders(filtered);
+    if (shouldRender) {
+        displayOrders(filtered);
+    } else {
+        updateFilterSummary(filtered);
+    }
 }
 
 // Clear filters
@@ -2996,6 +3071,7 @@ function generateReport() {
     updateReportTable(currentReportOrders);
     
     // Update chart
+    ensureChartInitialized();
     updateChart(currentReportOrders, startDate, endDate);
     
     // Enable PDF export button
@@ -3048,9 +3124,27 @@ function updateReportTable(orders) {
     applyResponsiveTableClasses();
 }
 
+function ensureChartInitialized() {
+    if (!salesChart) {
+        initializeChart();
+    }
+}
+
 // Initialize chart
 function initializeChart() {
-    const ctx = document.getElementById('sales-chart').getContext('2d');
+    if (salesChart || typeof Chart === 'undefined') {
+        return;
+    }
+
+    const canvas = document.getElementById('sales-chart');
+    if (!canvas) {
+        return;
+    }
+
+    const ctx = canvas.getContext('2d');
+    if (!ctx) {
+        return;
+    }
     
     salesChart = new Chart(ctx, {
         type: 'line',
@@ -3091,6 +3185,10 @@ function initializeChart() {
 
 // Update chart with data
 function updateChart(orders, startDate, endDate) {
+    if (!salesChart) {
+        return;
+    }
+
     // Group orders by date
     const ordersByDate = {};
     
