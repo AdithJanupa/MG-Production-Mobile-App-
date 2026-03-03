@@ -26,7 +26,12 @@ class MGProductsApp extends StatelessWidget {
       title: 'MG PRODUCTS',
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xFF2563EB)),
+        colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xFFB8862E)),
+        scaffoldBackgroundColor: const Color(0xFFFDF7E8),
+        appBarTheme: const AppBarTheme(
+          backgroundColor: Color(0xFF3C2A16),
+          foregroundColor: Color(0xFFF7DE9C),
+        ),
       ),
       home: const MGProductsHomePage(),
     );
@@ -223,6 +228,26 @@ class _MGProductsHomePageState extends State<MGProductsHomePage> {
     };
   }
 
+  void _registerJavaScriptHandlers(InAppWebViewController controller) {
+    // addJavaScriptHandler is not implemented on Flutter Web.
+    if (kIsWeb) {
+      return;
+    }
+
+    try {
+      controller.addJavaScriptHandler(
+        handlerName: 'printBill',
+        callback: _handlePrintBillFromWeb,
+      );
+    } on UnimplementedError {
+      if (kDebugMode) {
+        debugPrint(
+          'printBill JavaScript handler is unavailable on this platform.',
+        );
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     if (_startupError != null) {
@@ -258,15 +283,46 @@ class _MGProductsHomePageState extends State<MGProductsHomePage> {
     }
 
     if (!_serverReady) {
-      return const Scaffold(
-        body: Center(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              CircularProgressIndicator(),
-              SizedBox(height: 12),
-              Text('Starting MG PRODUCTS app...'),
-            ],
+      return Scaffold(
+        body: Container(
+          decoration: const BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+              colors: [Color(0xFF2A1C0F), Color(0xFF5D421E), Color(0xFFC29A4A)],
+            ),
+          ),
+          child: Center(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Text(
+                  'MG PRODUCTS',
+                  style: TextStyle(
+                    color: Color(0xFFF7DE9C),
+                    fontSize: 26,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: 1.1,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                const Text(
+                  'Loading dashboard...',
+                  style: TextStyle(color: Color(0xFFF8EAC4), fontSize: 14),
+                ),
+                const SizedBox(height: 18),
+                const SizedBox(
+                  width: 28,
+                  height: 28,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 3,
+                    valueColor: AlwaysStoppedAnimation<Color>(
+                      Color(0xFFF7DE9C),
+                    ),
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       );
@@ -313,10 +369,7 @@ class _MGProductsHomePageState extends State<MGProductsHomePage> {
               ),
               onWebViewCreated: (controller) {
                 _webViewController = controller;
-                controller.addJavaScriptHandler(
-                  handlerName: 'printBill',
-                  callback: _handlePrintBillFromWeb,
-                );
+                _registerJavaScriptHandlers(controller);
               },
               onProgressChanged: (controller, progress) {
                 if (!mounted) {

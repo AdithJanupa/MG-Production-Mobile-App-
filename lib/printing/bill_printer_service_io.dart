@@ -2,8 +2,6 @@ import 'dart:async';
 
 import 'package:esc_pos_utils_plus/esc_pos_utils_plus.dart';
 import 'package:flutter/foundation.dart';
-import 'package:flutter/services.dart';
-import 'package:image/image.dart' as img;
 import 'package:permission_handler/permission_handler.dart';
 import 'package:print_bluetooth_thermal/print_bluetooth_thermal.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -39,12 +37,10 @@ class BillPrinterService {
   static const String _printerNameKey = 'printer.name';
   static final Future<CapabilityProfile> _capabilityProfileFuture =
       CapabilityProfile.load();
-  static const int _logoPrintWidth = 140;
+  static const String _shopContactNumber = '077 917 0476';
 
   String? _selectedPrinterName;
   String? _selectedPrinterMacAddress;
-  img.Image? _cachedResizedLogoImage;
-  bool _logoLoadAttempted = false;
 
   String? get selectedPrinterName => _selectedPrinterName;
 
@@ -311,20 +307,10 @@ class BillPrinterService {
     final bytes = <int>[];
 
     bytes.addAll(generator.reset());
-    final logoImage = await _loadLogoImage();
-    if (logoImage != null) {
-      try {
-        bytes.addAll(generator.imageRaster(logoImage, align: PosAlign.center));
-      } catch (error, stackTrace) {
-        debugPrint('Skipping logo image due to raster error: $error');
-        debugPrintStack(stackTrace: stackTrace);
-      }
-    }
 
     final now = DateTime.now();
     final billNumber = _safePrintText(_stringValue(order['billNumber']));
     final orderDate = _safePrintText(_stringValue(order['date']));
-    final orderId = _safePrintText(_stringValue(order['id']));
     final shopName = _safePrintText(_stringValue(order['shopName']));
     final productName = _safePrintText(_stringValue(order['product']));
     final quantity = _intValue(order['quantity']);
@@ -335,6 +321,12 @@ class BillPrinterService {
     ).toLowerCase();
     final paidDate = _safePrintText(_stringValue(order['paidDate']));
     final note = _safePrintText(_stringValue(order['note']));
+
+    final safeBillNumber = billNumber.isEmpty ? '-' : billNumber;
+    final safeOrderDate = orderDate.isEmpty ? _formatDate(now) : orderDate;
+    final safeShopName = shopName.isEmpty ? '-' : shopName;
+    final safeProductName = productName.isEmpty ? '-' : productName;
+    final isPaid = paymentStatus == 'paid';
 
     bytes.addAll(
       generator.text(
@@ -347,96 +339,63 @@ class BillPrinterService {
         ),
       ),
     );
-
     bytes.addAll(
       generator.text(
-        'SALES BILL',
+        'PREMIUM SALES BILL',
         styles: const PosStyles(align: PosAlign.center, bold: true),
       ),
     );
-
-    bytes.addAll(generator.text('Printed : ${_formatDateTime(now)}'));
-    bytes.addAll(generator.hr());
-
-    bytes.addAll(
-      generator.text('Bill No : ${billNumber.isEmpty ? '-' : billNumber}'),
-    );
-    bytes.addAll(
-      generator.text('Order ID: ${orderId.isEmpty ? '-' : orderId}'),
-    );
     bytes.addAll(
       generator.text(
-        'Date    : ${orderDate.isEmpty ? _formatDate(now) : orderDate}',
+        'Printed: ${_formatDateTime(now)}',
+        styles: const PosStyles(),
       ),
     );
     bytes.addAll(
-      generator.text('Shop    : ${shopName.isEmpty ? '-' : shopName}'),
+      generator.text(
+        safeShopName,
+        styles: const PosStyles(bold: true),
+      ),
     );
+    bytes.addAll(generator.feed(1));
+
+    bytes.addAll(
+      generator.text(
+        'Bill No : $safeBillNumber',
+        styles: const PosStyles(bold: true),
+      ),
+    );
+    bytes.addAll(generator.text('Date    : $safeOrderDate'));
 
     bytes.addAll(generator.hr());
-
     bytes.addAll(
-      generator.row([
-        PosColumn(text: 'Item', width: 6, styles: const PosStyles(bold: true)),
-        PosColumn(
-          text: 'Qty',
-          width: 2,
-          styles: const PosStyles(align: PosAlign.right, bold: true),
-        ),
-        PosColumn(
-          text: 'Rate',
-          width: 2,
-          styles: const PosStyles(align: PosAlign.right, bold: true),
-        ),
-        PosColumn(
-          text: 'Amt',
-          width: 2,
-          styles: const PosStyles(align: PosAlign.right, bold: true),
-        ),
-      ]),
+      generator.text(
+        'ITEM DETAILS',
+        styles: const PosStyles(align: PosAlign.center, bold: true),
+      ),
     );
-
     bytes.addAll(
-      generator.row([
-        PosColumn(
-          text: productName.isEmpty ? '-' : productName,
-          width: 6,
-          styles: const PosStyles(),
-        ),
-        PosColumn(
-          text: '$quantity',
-          width: 2,
-          styles: const PosStyles(align: PosAlign.right),
-        ),
-        PosColumn(
-          text: rate.toStringAsFixed(0),
-          width: 2,
-          styles: const PosStyles(align: PosAlign.right),
-        ),
-        PosColumn(
-          text: total.toStringAsFixed(0),
-          width: 2,
-          styles: const PosStyles(align: PosAlign.right),
-        ),
-      ]),
+      generator.text(
+        safeProductName,
+        styles: const PosStyles(align: PosAlign.center, bold: true),
+      ),
     );
+    bytes.addAll(generator.text('Qty     : $quantity'));
+    bytes.addAll(generator.text('Rate    : Rs ${rate.toStringAsFixed(2)}'));
+    bytes.addAll(generator.text('Amount  : Rs ${total.toStringAsFixed(2)}'));
 
     bytes.addAll(generator.hr());
-
     bytes.addAll(
-      generator.row([
-        PosColumn(text: 'TOTAL', width: 8, styles: const PosStyles(bold: true)),
-        PosColumn(
-          text: 'Rs ${total.toStringAsFixed(2)}',
-          width: 4,
-          styles: const PosStyles(align: PosAlign.right, bold: true),
-        ),
-      ]),
+      generator.text(
+        'TOTAL   : Rs ${total.toStringAsFixed(2)}',
+        styles: const PosStyles(bold: true, height: PosTextSize.size2),
+      ),
     );
 
     bytes.addAll(
       generator.text(
-        'Payment : ${paymentStatus == 'paid' ? 'Paid' : 'Non-Paid'}',
+        isPaid ? 'Payment : PAID' : 'Payment : NON-PAID',
+        styles: const PosStyles(bold: true),
       ),
     );
 
@@ -449,42 +408,22 @@ class BillPrinterService {
       bytes.addAll(generator.text('Note: $note'));
     }
 
-    bytes.addAll(generator.feed(1));
+    bytes.addAll(generator.hr());
     bytes.addAll(
       generator.text(
-        'Thank you for your order!',
+        'Thank you for shopping with us!',
         styles: const PosStyles(align: PosAlign.center, bold: true),
+      ),
+    );
+    bytes.addAll(
+      generator.text(
+        'Contact: $_shopContactNumber',
+        styles: const PosStyles(align: PosAlign.center),
       ),
     );
     bytes.addAll(generator.feed(3));
 
     return bytes;
-  }
-
-  Future<img.Image?> _loadLogoImage() async {
-    if (_cachedResizedLogoImage != null) {
-      return _cachedResizedLogoImage;
-    }
-
-    if (_logoLoadAttempted) {
-      return null;
-    }
-
-    _logoLoadAttempted = true;
-
-    try {
-      final data = await rootBundle.load('assets/webapp/icons/logo.png');
-      final bytes = data.buffer.asUint8List();
-      final decoded = img.decodeImage(bytes);
-      if (decoded == null) {
-        return null;
-      }
-
-      _cachedResizedLogoImage = img.copyResize(decoded, width: _logoPrintWidth);
-      return _cachedResizedLogoImage;
-    } catch (_) {
-      return null;
-    }
   }
 
   String _stringValue(dynamic value) {

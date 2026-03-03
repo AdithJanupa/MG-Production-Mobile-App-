@@ -88,6 +88,8 @@ const toastRegion = document.getElementById('toast-region');
 const sidebar = document.getElementById('app-sidebar');
 const sidebarToggleBtn = document.getElementById('sidebarToggle');
 const sidebarOverlay = document.getElementById('sidebarOverlay');
+const navigationLoaderEl = document.getElementById('navigation-loader');
+const navigationLoaderTextEl = document.getElementById('navigation-loader-text');
 
 // Product toggle button
 const toggleAddProductBtn = document.getElementById('toggle-add-product');
@@ -123,6 +125,9 @@ const TABLE_ADAPTERS = {
     'report-table': { pattern: 'scroll', columns: 6 }
 };
 let mobileTableModeActive = false;
+let navigationLoaderVisibleAt = 0;
+let navigationLoaderHideTimer = null;
+const NAVIGATION_LOADER_MIN_VISIBLE_MS = 200;
 const SECTION_META = {
     'dashboard': {
         title: 'Dashboard',
@@ -993,6 +998,43 @@ function updatePageContext(sectionId) {
     }
 }
 
+function showNavigationLoader(sectionId) {
+    if (!navigationLoaderEl) {
+        return;
+    }
+
+    if (navigationLoaderHideTimer) {
+        clearTimeout(navigationLoaderHideTimer);
+        navigationLoaderHideTimer = null;
+    }
+
+    const metadata = SECTION_META[sectionId] || SECTION_META.dashboard;
+    if (navigationLoaderTextEl) {
+        navigationLoaderTextEl.textContent = `Loading ${metadata.title}...`;
+    }
+
+    navigationLoaderVisibleAt = Date.now();
+    navigationLoaderEl.classList.add('active');
+    navigationLoaderEl.setAttribute('aria-hidden', 'false');
+}
+
+function hideNavigationLoader() {
+    if (!navigationLoaderEl) {
+        return;
+    }
+
+    const elapsed = Date.now() - navigationLoaderVisibleAt;
+    const remaining = Math.max(0, NAVIGATION_LOADER_MIN_VISIBLE_MS - elapsed);
+
+    if (navigationLoaderHideTimer) {
+        clearTimeout(navigationLoaderHideTimer);
+    }
+
+    navigationLoaderHideTimer = setTimeout(() => {
+        navigationLoaderEl.classList.remove('active');
+        navigationLoaderEl.setAttribute('aria-hidden', 'true');
+    }, remaining);
+}
 function initializeNetworkStatus() {
     window.addEventListener('online', updateNetworkStatus);
     window.addEventListener('offline', updateNetworkStatus);
@@ -2030,29 +2072,44 @@ function closeModal() {
 }
 
 // Switch between sections
-function switchSection(sectionId) {
-    contentSections.forEach(section => {
-        section.classList.remove('active');
-        if (section.id === sectionId) {
-            section.classList.add('active');
-        }
-    });
-
-    setActiveNavigation(sectionId);
-    updatePageContext(sectionId);
-    
-    // Refresh data for certain sections
-    if (sectionId === 'dashboard') {
-        updateDashboard();
-    } else if (sectionId === 'view-orders') {
-        if (hasActiveOrderFilters()) {
-            filterOrders(true);
-        } else {
-            displayOrders(allOrders);
-        }
-    } else if (sectionId === 'reports') {
-        ensureChartInitialized();
+function switchSection(sectionId, options = {}) {
+    const sections = Array.from(contentSections);
+    const targetSection = sections.find((section) => section.id === sectionId);
+    if (!targetSection) {
+        return;
     }
+
+    const activeSection = getActiveSectionId();
+    const shouldForce = Boolean(options.force);
+    if (!shouldForce && activeSection === sectionId) {
+        return;
+    }
+
+    showNavigationLoader(sectionId);
+
+    requestAnimationFrame(() => {
+        sections.forEach((section) => {
+            section.classList.toggle('active', section.id === sectionId);
+        });
+
+        setActiveNavigation(sectionId);
+        updatePageContext(sectionId);
+
+        // Refresh data for certain sections
+        if (sectionId === 'dashboard') {
+            updateDashboard();
+        } else if (sectionId === 'view-orders') {
+            if (hasActiveOrderFilters()) {
+                filterOrders(true);
+            } else {
+                displayOrders(allOrders);
+            }
+        } else if (sectionId === 'reports') {
+            ensureChartInitialized();
+        }
+
+        hideNavigationLoader();
+    });
 }
 
 // Calculate total amount

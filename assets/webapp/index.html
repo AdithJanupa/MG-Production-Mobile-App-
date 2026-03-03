@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
     <meta name="description" content="MG PRODUCTS shop management system for orders, reports, and product tracking.">
-    <meta name="theme-color" content="#2563EB">
+    <meta name="theme-color" content="#b8862e">
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="default">
@@ -17,7 +17,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@600;700;800&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -27,8 +27,7 @@
         <div class="login-container">
             <div class="login-header">
                 <div class="login-logo">
-                    <span class="login-mg">MG</span>
-                    <span class="login-products">PRODUCTS</span>
+                    <span class="logo-heading">MG PRODUCTS</span>
                 </div>
                 <p>Shop Management System</p>
             </div>
@@ -67,20 +66,6 @@
                     </select>
                 </div>
                 
-                <div class="login-info">
-                    <p><i class="fas fa-info-circle"></i> Demo Credentials:</p>
-                    <div class="demo-creds">
-                        <div class="creds-item">
-                            <span class="role-badge admin">Admin</span>
-                            <span>admin / admin123</span>
-                        </div>
-                        <div class="creds-item">
-                            <span class="role-badge user">User</span>
-                            <span>user / user123</span>
-                        </div>
-                    </div>
-                </div>
-                
                 <button type="submit" class="btn-login">
                     <i class="fas fa-sign-in-alt"></i> Login to Dashboard
                 </button>
@@ -101,12 +86,11 @@
                     <i class="fas fa-bars"></i>
                 </button>
                 <div class="logo-container">
-                    <div class="logo">
-                        <div class="logo-text">
-                            <span class="logo-mg">MG</span>
-                            <span class="logo-products">PRODUCTS</span>
+                    <div class="logo logo-brand">
+                        <div class="logo-meta">
+                            <span class="logo-heading">MG PRODUCTS</span>
+                            <p>Shop Management System</p>
                         </div>
-                        <p>Shop Management System</p>
                     </div>
                 </div>
                 <div class="page-context">
@@ -145,12 +129,11 @@
             <!-- Sidebar -->
             <aside id="app-sidebar" class="sidebar" aria-label="Primary">
                 <div class="sidebar-header">
-                    <div class="logo">
-                        <div class="logo-text">
-                            <span class="logo-mg">MG</span>
-                            <span class="logo-products">PRODUCTS</span>
+                    <div class="logo logo-brand">
+                        <div class="logo-meta">
+                            <span class="logo-heading">MG PRODUCTS</span>
+                            <p>Sales Operations</p>
                         </div>
-                        <p>Sales Operations</p>
                     </div>
                     <div class="theme-toggle">
                         <button id="themeToggle" class="btn-theme" type="button" aria-label="Toggle dark mode">
@@ -744,8 +727,7 @@
         <!-- Footer -->
         <footer class="footer">
             <div class="footer-logo">
-                <span class="footer-mg">MG</span>
-                <span class="footer-products">PRODUCTS</span>
+                <span class="footer-brand-text">MG PRODUCTS</span>
             </div>
             <p>Shop Management System &copy; <span id="current-year"></span> | Developed for Daily Shop Visits</p>
         </footer>
@@ -799,6 +781,13 @@
                     <i class="fas fa-times"></i> Cancel
                 </button>
             </div>
+        </div>
+    </div>
+
+    <div id="navigation-loader" class="navigation-loader" aria-hidden="true">
+        <div class="navigation-loader-card" role="status" aria-live="polite">
+            <div class="navigation-loader-spinner" aria-hidden="true"></div>
+            <p id="navigation-loader-text">Loading...</p>
         </div>
     </div>
 
