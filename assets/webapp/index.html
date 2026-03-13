@@ -342,11 +342,11 @@
                                     <input type="date" id="order-date" required>
                                 </div>
                             </div>
-                            
+
                             <div class="form-row">
                                 <div class="form-group">
                                     <label for="product"><i class="fas fa-box-open"></i> Product</label>
-                                    <select id="product" required>
+                                    <select id="product">
                                         <option value="">Select a product</option>
                                         <!-- Products will be dynamically populated -->
                                     </select>
@@ -356,21 +356,41 @@
                                     <input type="text" id="bill-number" placeholder="Enter bill number" required>
                                 </div>
                             </div>
-                            
+
                             <div class="form-row">
                                 <div class="form-group">
                                     <label for="quantity"><i class="fas fa-cubes"></i> Quantity</label>
-                                    <input type="number" id="quantity" min="1" placeholder="Enter quantity" required>
+                                    <input type="number" id="quantity" min="1" placeholder="Enter quantity">
                                 </div>
                                 <div class="form-group">
                                     <label for="rate"><i class="fas fa-tag"></i> Rate per Product (Rs.)</label>
-                                    <input type="number" id="rate" min="1" placeholder="Enter rate" required>
+                                    <input type="number" id="rate" min="0.01" step="0.01" placeholder="Enter rate">
                                 </div>
                             </div>
                             
                             <div class="form-row">
                                 <div class="form-group">
-                                    <label for="total"><i class="fas fa-calculator"></i> Total Amount (Rs.)</label>
+                                    <label for="line-total"><i class="fas fa-list-ol"></i> Selected Item Total (Rs.)</label>
+                                    <input type="number" id="line-total" readonly>
+                                </div>
+                                <div class="form-group">
+                                    <label>&nbsp;</label>
+                                    <button type="button" id="add-order-item-btn" class="btn btn-secondary">
+                                        <i class="fas fa-plus"></i> Add Item
+                                    </button>
+                                </div>
+                            </div>
+
+                            <div class="form-group full-width order-items-group">
+                                <label><i class="fas fa-layer-group"></i> Order Items</label>
+                                <div id="order-items-empty" class="order-items-empty">No items added yet.</div>
+                                <div id="order-items-list" class="order-items-list"></div>
+                            </div>
+
+
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label for="total"><i class="fas fa-calculator"></i> Order Total Amount (Rs.)</label>
                                     <input type="number" id="total" readonly>
                                 </div>
                                 <div class="form-group">
@@ -381,7 +401,7 @@
                                     </select>
                                 </div>
                             </div>
-                            
+
                             <div class="form-row">
                                 <div class="form-group">
                                     <label for="paid-date"><i class="fas fa-calendar-check"></i> Paid Date</label>

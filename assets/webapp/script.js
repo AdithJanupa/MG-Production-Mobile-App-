@@ -64,6 +64,10 @@ const updateProductSelect = document.getElementById('update-product');
 const paymentStatusSelect = document.getElementById('payment-status');
 const paidDateInput = document.getElementById('paid-date');
 const printBillAfterSaveInput = document.getElementById('print-bill-after-save');
+const lineTotalInput = document.getElementById('line-total');
+const addOrderItemBtn = document.getElementById('add-order-item-btn');
+const orderItemsListEl = document.getElementById('order-items-list');
+const orderItemsEmptyEl = document.getElementById('order-items-empty');
 
 // Report buttons
 const generateReportBtn = document.getElementById('generate-report');
@@ -111,6 +115,7 @@ let currentReportStartDate = '';
 let currentReportEndDate = '';
 let currentFilteredOrders = [];
 let currentUser = null;
+let pendingOrderItems = [];
 let deferredInstallPrompt = null;
 let unsubscribeOrdersListener = null;
 let unsubscribeProductsListener = null;
@@ -253,11 +258,22 @@ function setupEventListeners() {
     quantityInput.addEventListener('input', calculateTotal);
     rateInput.addEventListener('input', calculateTotal);
     productSelect.addEventListener('change', updateRateByProduct);
+
+    if (addOrderItemBtn) {
+        addOrderItemBtn.addEventListener('click', addCurrentOrderItem);
+    }
     
     orderForm.addEventListener('submit', function(e) {
         e.preventDefault();
         if (!checkAdminPermission('add orders')) return;
         saveOrder();
+    });
+
+    orderForm.addEventListener('reset', function() {
+        setTimeout(() => {
+            resetPendingOrderItems();
+            calculateTotal();
+        }, 0);
     });
     
     // Add product form
@@ -446,6 +462,9 @@ function loginUser(username, role) {
     // Set default dates
     document.getElementById('order-date').valueAsDate = now;
     document.getElementById('filter-date').valueAsDate = now;
+
+    resetPendingOrderItems();
+    calculateTotal();
     
     // Set report dates (default to current week)
     const startOfWeek = new Date(now);
@@ -2116,17 +2135,149 @@ function switchSection(sectionId, options = {}) {
 function calculateTotal() {
     const quantity = parseInt(quantityInput.value) || 0;
     const rate = parseFloat(rateInput.value) || 0;
-    const total = quantity * rate;
-    totalInput.value = total.toFixed(2);
+    const lineTotal = quantity * rate;
+
+    if (lineTotalInput) {
+        lineTotalInput.value = lineTotal > 0 ? lineTotal.toFixed(2) : '';
+    }
+
+    const previewTotal = getPendingOrderTotal() + lineTotal;
+    totalInput.value = previewTotal > 0 ? previewTotal.toFixed(2) : '';
 }
 
-// Update rate based on selected product
+function getPendingOrderTotal() {
+    return pendingOrderItems.reduce((sum, item) => sum + Number(item.lineTotal || 0), 0);
+}
+
+function updateOrderTotalDisplay() {
+    const total = getPendingOrderTotal();
+    totalInput.value = total > 0 ? total.toFixed(2) : '';
+}
+
 function updateRateByProduct() {
     const selectedProduct = productSelect.value;
-    if (selectedProduct && productPrices[selectedProduct]) {
-        rateInput.value = productPrices[selectedProduct];
-        calculateTotal();
+    if (selectedProduct && productPrices[selectedProduct] != null) {
+        rateInput.value = Number(productPrices[selectedProduct]).toFixed(2);
     }
+    calculateTotal();
+}
+
+function buildOrderItem(product, quantity, rate) {
+    const normalizedRate = Number(rate.toFixed(2));
+    const normalizedQuantity = Math.max(1, Number(quantity));
+    return {
+        product,
+        quantity: normalizedQuantity,
+        rate: normalizedRate,
+        lineTotal: Number((normalizedQuantity * normalizedRate).toFixed(2))
+    };
+}
+
+function renderPendingOrderItems() {
+    if (!orderItemsListEl || !orderItemsEmptyEl) {
+        return;
+    }
+
+    orderItemsListEl.innerHTML = '';
+
+    if (!pendingOrderItems.length) {
+        orderItemsEmptyEl.style.display = 'block';
+        return;
+    }
+
+    orderItemsEmptyEl.style.display = 'none';
+
+    pendingOrderItems.forEach((item, index) => {
+        const row = document.createElement('div');
+        row.className = 'order-item-row';
+
+        const meta = document.createElement('div');
+        meta.className = 'order-item-meta';
+        const subtitle = 'Qty: ' + item.quantity + ' | Rate: Rs. ' + Number(item.rate).toFixed(2) + ' | Amount: Rs. ' + Number(item.lineTotal).toFixed(2);
+        meta.innerHTML = '<span class="order-item-title">' + item.product + '</span>' +
+            '<span class="order-item-subtitle">' + subtitle + '</span>';
+
+        const removeBtn = document.createElement('button');
+        removeBtn.type = 'button';
+        removeBtn.className = 'order-item-remove';
+        removeBtn.innerHTML = '<i class="fas fa-trash"></i>';
+        removeBtn.setAttribute('aria-label', 'Remove ' + item.product);
+        removeBtn.addEventListener('click', () => {
+            pendingOrderItems.splice(index, 1);
+            renderPendingOrderItems();
+            updateOrderTotalDisplay();
+        });
+
+        row.appendChild(meta);
+        row.appendChild(removeBtn);
+        orderItemsListEl.appendChild(row);
+    });
+}
+
+function addCurrentOrderItem() {
+    const product = productSelect.value;
+    const quantity = parseInt(quantityInput.value);
+    const rate = parseFloat(rateInput.value);
+
+    if (!product) {
+        showNotification('Select a product before adding item.', 'warning');
+        return;
+    }
+
+    if (!quantity || quantity <= 0 || !rate || rate <= 0) {
+        showNotification('Enter valid quantity and rate for the item.', 'warning');
+        return;
+    }
+
+    const newItem = buildOrderItem(product, quantity, rate);
+    const existing = pendingOrderItems.find(
+        (item) => item.product === newItem.product && Number(item.rate) === Number(newItem.rate)
+    );
+
+    if (existing) {
+        existing.quantity += newItem.quantity;
+        existing.lineTotal = Number((existing.quantity * Number(existing.rate)).toFixed(2));
+    } else {
+        pendingOrderItems.push(newItem);
+    }
+
+    renderPendingOrderItems();
+    updateOrderTotalDisplay();
+
+    productSelect.value = '';
+    quantityInput.value = '';
+    rateInput.value = '';
+    calculateTotal();
+}
+
+function resetPendingOrderItems() {
+    pendingOrderItems = [];
+    renderPendingOrderItems();
+    updateOrderTotalDisplay();
+}
+
+function getPreparedOrderItems() {
+    const prepared = pendingOrderItems.map((item) => ({
+        product: item.product,
+        quantity: Number(item.quantity) || 0,
+        rate: Number(item.rate) || 0,
+        lineTotal: Number(item.lineTotal) || 0,
+    })).filter((item) => item.product && item.quantity > 0 && item.rate > 0);
+
+    const product = productSelect.value;
+    const quantity = parseInt(quantityInput.value);
+    const rate = parseFloat(rateInput.value);
+
+    if (product && quantity > 0 && rate > 0) {
+        prepared.push(buildOrderItem(product, quantity, rate));
+    }
+
+    return prepared;
+}
+
+function summarizeProducts(items) {
+    const names = [...new Set(items.map((item) => item.product).filter(Boolean))];
+    return names.join(', ');
 }
 
 // Load orders from Firebase
@@ -2722,6 +2873,14 @@ async function requestBillPrint(orderData) {
 }
 function buildPrintableOrder(order) {
     const paymentStatus = order.paymentStatus || (order.paidDate ? 'paid' : 'non-paid');
+    const items = Array.isArray(order.items)
+        ? order.items.map((item) => ({
+            product: item.product || '',
+            quantity: Number(item.quantity) || 0,
+            rate: Number(item.rate) || 0,
+            lineTotal: Number(item.lineTotal || item.total || 0) || 0,
+        })).filter((item) => item.product)
+        : [];
 
     return {
         id: order.id || '',
@@ -2734,7 +2893,8 @@ function buildPrintableOrder(order) {
         total: Number(order.total) || 0,
         paymentStatus,
         paidDate: order.paidDate || '',
-        note: order.note || ''
+        note: order.note || '',
+        items,
     };
 }
 
@@ -2750,36 +2910,50 @@ async function printOrderBill(orderId) {
 // Save order to Firebase
 async function saveOrder() {
     if (!checkAdminPermission('save orders')) return;
-    
-    const shopName = document.getElementById('shop-name').value;
+
+    const shopName = document.getElementById('shop-name').value.trim();
     const orderDate = document.getElementById('order-date').value;
-    const product = document.getElementById('product').value;
-    const billNumber = document.getElementById('bill-number').value;
-    const quantity = parseInt(document.getElementById('quantity').value);
-    const rate = parseFloat(document.getElementById('rate').value);
-    const total = parseFloat(document.getElementById('total').value);
+    const billNumber = document.getElementById('bill-number').value.trim();
     const paymentStatus = document.getElementById('payment-status').value;
     const paidDate = paymentStatus === 'paid' ? document.getElementById('paid-date').value : null;
     const note = document.getElementById('note').value;
     const shouldPrintBillAfterSave = Boolean(printBillAfterSaveInput?.checked);
-    
+
+    const items = getPreparedOrderItems();
+
+    if (!shopName || !orderDate || !billNumber) {
+        showNotification('Please fill shop name, order date, and bill number.', 'warning');
+        return;
+    }
+
+    if (!items.length) {
+        showNotification('Please add at least one item to the order.', 'warning');
+        return;
+    }
+
+    const totalQuantity = items.reduce((sum, item) => sum + Number(item.quantity || 0), 0);
+    const totalAmount = Number(items.reduce((sum, item) => sum + Number(item.lineTotal || 0), 0).toFixed(2));
+    const averageRate = totalQuantity > 0 ? Number((totalAmount / totalQuantity).toFixed(2)) : 0;
+    const productSummary = summarizeProducts(items);
+
     const order = {
         shopName,
         date: orderDate,
-        product,
+        product: productSummary,
         billNumber,
-        quantity,
-        rate,
-        total,
+        quantity: totalQuantity,
+        rate: averageRate,
+        total: totalAmount,
         paymentStatus,
         paidDate,
         note,
+        items,
         createdAt: serverTimestamp()
     };
-    
+
     try {
         const docRef = await addDoc(collection(db, "orders"), order);
-        console.log("Order saved with ID: ", docRef.id);
+        console.log('Order saved with ID: ', docRef.id);
         showNotification('Order saved successfully!', 'success');
 
         const savedOrder = {
@@ -2790,31 +2964,34 @@ async function saveOrder() {
         if (shouldPrintBillAfterSave) {
             await requestBillPrint(buildPrintableOrder(savedOrder));
         }
-        
-        // Auto reset form
+
         orderForm.reset();
-        
-        // Reset form dates
+        resetPendingOrderItems();
+
         const now = new Date();
         document.getElementById('order-date').valueAsDate = now;
         document.getElementById('payment-status').value = 'non-paid';
         paidDateInput.disabled = true;
-        
-        // Switch to dashboard
+        calculateTotal();
+
         switchSection('dashboard');
     } catch (error) {
-        console.error("Error saving order: ", error);
+        console.error('Error saving order: ', error);
         showNotification('Error saving order. Please try again.', 'error');
     }
 }
-
 // Edit order
 function editOrder(orderId) {
     if (!checkAdminPermission('edit orders')) return;
     
     const order = allOrders.find(o => o.id === orderId);
     if (!order) return;
-    
+
+    if (Array.isArray(order.items) && order.items.length > 1) {
+        showNotification('Editing multi-item orders is not supported yet. Please delete and recreate this order.', 'warning');
+        return;
+    }
+
     const paymentStatus = order.paymentStatus || (order.paidDate ? 'paid' : 'non-paid');
     
     const modalBody = document.querySelector('.modal-body');
@@ -3011,7 +3188,17 @@ function filterOrders(shouldRender = true) {
     }
     
     if (filterProduct) {
-        filtered = filtered.filter(order => order.product === filterProduct);
+        filtered = filtered.filter(order => {
+            if (order.product === filterProduct) {
+                return true;
+            }
+
+            if (Array.isArray(order.items)) {
+                return order.items.some((item) => item.product === filterProduct);
+            }
+
+            return false;
+        });
     }
     
     if (filterShop) {

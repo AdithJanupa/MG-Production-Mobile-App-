@@ -1530,6 +1530,66 @@ form {
     accent-color: var(--color-success);
     cursor: pointer;
 }
+
+#add-order-item-btn {
+    width: 100%;
+    min-height: 2.5rem;
+}
+
+.order-items-group {
+    gap: var(--space-3);
+}
+
+.order-items-empty {
+    border: 1px dashed var(--color-border);
+    border-radius: var(--radius-sm);
+    padding: var(--space-3);
+    background: var(--color-bg-soft);
+    color: var(--color-text-subtle);
+    font-size: var(--text-small);
+}
+
+.order-items-list {
+    display: grid;
+    gap: var(--space-2);
+}
+
+.order-item-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: var(--space-3);
+    align-items: center;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    padding: var(--space-3);
+    background: var(--color-surface-elevated);
+}
+
+.order-item-meta {
+    display: grid;
+    gap: 0.2rem;
+}
+
+.order-item-title {
+    font-weight: 700;
+    color: var(--color-text);
+}
+
+.order-item-subtitle {
+    font-size: var(--text-small);
+    color: var(--color-text-muted);
+}
+
+.order-item-remove {
+    min-height: 2rem;
+    min-width: 2rem;
+    border: 1px solid var(--color-danger-soft);
+    border-radius: var(--radius-sm);
+    color: var(--color-danger);
+    background: #fff;
+    cursor: pointer;
+}
+
 .filter-summary {
     padding: var(--space-4);
     display: grid;
