@@ -328,6 +328,25 @@ class BillPrinterService {
     final safeProductName = productName.isEmpty ? '-' : productName;
     final isPaid = paymentStatus == 'paid';
 
+    final parsedItems = _extractOrderItems(order);
+    final effectiveItems = parsedItems.isNotEmpty
+        ? parsedItems
+        : <Map<String, dynamic>>[
+            <String, dynamic>{
+              'product': safeProductName,
+              'quantity': quantity > 0 ? quantity : 1,
+              'rate': rate,
+              'lineTotal': total > 0
+                  ? total
+                  : (quantity > 0 ? quantity * rate : 0),
+            },
+          ];
+
+    final computedTotal = effectiveItems.fold<double>(0, (sum, item) {
+      return sum + _doubleValue(item['lineTotal']);
+    });
+    final grandTotal = total > 0 ? total : computedTotal;
+
     bytes.addAll(
       generator.text(
         'MG PRODUCTS',
@@ -352,10 +371,7 @@ class BillPrinterService {
       ),
     );
     bytes.addAll(
-      generator.text(
-        safeShopName,
-        styles: const PosStyles(bold: true),
-      ),
+      generator.text(safeShopName, styles: const PosStyles(bold: true)),
     );
     bytes.addAll(generator.feed(1));
 
@@ -374,20 +390,33 @@ class BillPrinterService {
         styles: const PosStyles(align: PosAlign.center, bold: true),
       ),
     );
-    bytes.addAll(
-      generator.text(
-        safeProductName,
-        styles: const PosStyles(align: PosAlign.center, bold: true),
-      ),
-    );
-    bytes.addAll(generator.text('Qty     : $quantity'));
-    bytes.addAll(generator.text('Rate    : Rs ${rate.toStringAsFixed(2)}'));
-    bytes.addAll(generator.text('Amount  : Rs ${total.toStringAsFixed(2)}'));
+
+    for (final item in effectiveItems) {
+      final itemName = _safePrintText(_stringValue(item['product']));
+      final itemQty = _intValue(item['quantity']);
+      final itemRate = _doubleValue(item['rate']);
+      final itemTotal = _doubleValue(item['lineTotal']);
+
+      bytes.addAll(
+        generator.text(
+          itemName.isEmpty ? '-' : itemName,
+          styles: const PosStyles(bold: true),
+        ),
+      );
+      bytes.addAll(
+        generator.text(
+          '  Qty: $itemQty  Rate: Rs ${itemRate.toStringAsFixed(2)}',
+        ),
+      );
+      bytes.addAll(
+        generator.text('  Amount: Rs ${itemTotal.toStringAsFixed(2)}'),
+      );
+    }
 
     bytes.addAll(generator.hr());
     bytes.addAll(
       generator.text(
-        'TOTAL   : Rs ${total.toStringAsFixed(2)}',
+        'TOTAL   : Rs ${grandTotal.toStringAsFixed(2)}',
         styles: const PosStyles(bold: true, height: PosTextSize.size2),
       ),
     );
@@ -424,6 +453,39 @@ class BillPrinterService {
     bytes.addAll(generator.feed(3));
 
     return bytes;
+  }
+
+  List<Map<String, dynamic>> _extractOrderItems(Map<String, dynamic> order) {
+    final rawItems = order['items'];
+    if (rawItems is! List) {
+      return const <Map<String, dynamic>>[];
+    }
+
+    final parsed = <Map<String, dynamic>>[];
+    for (final rawItem in rawItems) {
+      if (rawItem is! Map) {
+        continue;
+      }
+
+      final item = rawItem.map((key, value) => MapEntry(key.toString(), value));
+      final product = _safePrintText(_stringValue(item['product']));
+      final quantity = _intValue(item['quantity']);
+      final rate = _doubleValue(item['rate']);
+      final lineTotal = _doubleValue(item['lineTotal']);
+
+      if (product.isEmpty || quantity <= 0 || rate <= 0) {
+        continue;
+      }
+
+      parsed.add(<String, dynamic>{
+        'product': product,
+        'quantity': quantity,
+        'rate': rate,
+        'lineTotal': lineTotal > 0 ? lineTotal : quantity * rate,
+      });
+    }
+
+    return parsed;
   }
 
   String _stringValue(dynamic value) {
